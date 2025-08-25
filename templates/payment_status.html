@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Likhil LMS – Payment Status</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+</head>
+<body class="bg-light">
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4">
+    <a class="navbar-brand" href="#">Likhil LMS</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navMenu">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Students</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('attendance') }}">Attendance</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('schedule') }}">Class Schedule</a></li>
+        <li class="nav-item"><a class="nav-link" href="#">Homework Status</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('payment_records') }}">Payment Records</a></li>
+        <li class="nav-item"><a class="nav-link active" href="{{ url_for('payment_status') }}">Payment Status</a></li>
+      </ul>
+      <div class="d-flex">
+        <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <h2 class="mb-4">💰 Payment Status</h2>
+
+    <!-- Calculator Form -->
+    <form method="POST" class="row g-3 mb-4">
+      <div class="col-md-5">
+        <label class="form-label">Student</label>
+        <select name="student" class="form-select" required>
+          <option value="">— select —</option>
+          {% for s in students %}
+            <option value="{{ s }}" {% if status and status.student == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-5">
+        <label class="form-label">Hourly Rate (₹)</label>
+        <input type="number" step="0.01" min="0" name="rate" class="form-control"
+               value="{{ status.rate if status else '' }}" placeholder="e.g., 800" required />
+      </div>
+
+      <div class="col-md-2 d-grid">
+        <label class="form-label invisible">.</label>
+        <button type="submit" class="btn btn-primary">Calculate</button>
+      </div>
+    </form>
+
+    {% if status %}
+      <!-- Summary -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <div class="text-muted small">Student</div>
+              <div class="fs-5 fw-semibold">{{ status.student }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <div class="text-muted small">Cleared up to</div>
+              <div class="fs-5 fw-semibold">{{ status.cleared_date }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <div class="text-muted small">Advance Hours</div>
+              <div class="fs-5 fw-semibold">{{ status.advance_hrs }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <div class="text-muted small">Hours Since Cleared</div>
+              <div class="fs-5 fw-semibold">{{ status.total_since }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Amount Due -->
+      <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <div>
+          <div class="fw-semibold">Pending Hours:</div>
+          <div class="fs-5">{{ status.pending_hrs }}</div>
+        </div>
+        <div>
+          <div class="fw-semibold">Hourly Rate:</div>
+          <div class="fs-5">₹{{ status.rate }}</div>
+        </div>
+        <div class="text-end">
+          <div class="fw-semibold">Amount Due</div>
+          <div class="fs-3 fw-bold">₹{{ status.pending_amount }}</div>
+        </div>
+      </div>
+
+      <!-- Classes contributing to dues -->
+      {% if classes %}
+        <h5 class="mt-4">Classes Since {{ status.cleared_date }}</h5>
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Date</th>
+                <th>Course</th>
+                <th>Time</th>
+                <th>Duration (hrs)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in classes %}
+                <tr>
+                  <td>{{ c['Date'] }}</td>
+                  <td>{{ c['Course'] }}</td>
+                  <td>{{ c['Time'] }}</td>
+                  <td>{{ c['Duration'] }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

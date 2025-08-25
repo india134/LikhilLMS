@@ -1,0 +1,237 @@
+{% extends "layout.html" %}
+{% block title %}Student Report – Likhil LMS{% endblock %}
+
+{% block content %}
+<div class="container mt-2">
+  <h2 class="mb-3">Student Report</h2>
+
+  <!-- Tabs -->
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link {% if tab == 'payment' %}active{% endif %}"
+         href="?tab=payment&student={{ selected_student|urlencode }}">Payment</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if tab == 'attendance' %}active{% endif %}"
+         href="?tab=attendance&student={{ selected_student|urlencode }}">Attendance</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if tab == 'performance' %}active{% endif %}"
+         href="?tab=performance&student={{ selected_student|urlencode }}">Performance</a>
+    </li>
+  </ul>
+
+  <!-- Student + Date Filters -->
+  <form method="GET" class="row g-3 mb-4">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <div class="col-md-4">
+      <label for="student" class="form-label">Select Student</label>
+      <select name="student" id="student" class="form-select" required>
+        <option value="">— Select —</option>
+        {% for s in student_names %}
+          <option value="{{ s }}" {% if s == selected_student %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if tab == 'payment' %}
+      <div class="col-md-3">
+        <label class="form-label">Start Date</label>
+        <input type="date" class="form-control" name="payment_start" value="{{ pay_start or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">End Date</label>
+        <input type="date" class="form-control" name="payment_end" value="{{ pay_end or '' }}">
+      </div>
+    {% else %}
+      <div class="col-md-3">
+        <label class="form-label">Start Date</label>
+        <input type="date" class="form-control" name="att_start" value="{{ att_start or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">End Date</label>
+        <input type="date" class="form-control" name="att_end" value="{{ att_end or '' }}">
+      </div>
+    {% endif %}
+
+    <div class="col-md-2 d-flex align-items-end">
+      <button type="submit" class="btn btn-primary w-100">Filter</button>
+    </div>
+  </form>
+
+  <!-- Payment Tab -->
+  {% if tab == 'payment' %}
+    <h5 class="mb-2">Total Paid: ₹{{ total_paid or 0 }}</h5>
+    {% if payment_records %}
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Advance Hours</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in payment_records %}
+              <tr>
+                <td>
+                  {% if row['Cleared_Date'] %}
+                    {{ row['Cleared_Date'].strftime('%d-%b-%Y') }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>{{ row.get('Amount_Paid', '') }}</td>
+                <td>{{ row.get('Advance_Hours', 0) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert alert-info">No payments found for the selected filters.</div>
+    {% endif %}
+  {% endif %}
+
+  <!-- Attendance Tab -->
+  {% if tab == 'attendance' %}
+    <div class="row g-3 mb-2">
+      <div class="col-md-6"><h5>Classes Attended: {{ attendance_count or 0 }}</h5></div>
+      <div class="col-md-6"><h5>Total Hours: {{ attendance_total_hours or 0 }}</h5></div>
+    </div>
+
+    {% if attendance_records %}
+      <div class="table-responsive">
+        <table class="table table-striped align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Course</th>
+              <th>Duration (hrs)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in attendance_records %}
+              <tr>
+                <td>
+                  {% if row['Date'] %}
+                    {# Date might already be a datetime; guard accordingly #}
+                    {% if row['Date'].__class__.__name__ == 'Timestamp' or row['Date'].__class__.__name__ == 'datetime' or row['Date'].__class__.__name__ == 'date' %}
+                      {{ row['Date'].strftime('%d-%b-%Y') }}
+                    {% else %}
+                      {{ row['Date'] }}
+                    {% endif %}
+                  {% else %}—{% endif %}
+                </td>
+                <td>{{ row.get('Time','') }}</td>
+                <td>{{ row.get('Course','') }}</td>
+                <td>{{ row.get('Duration','') }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert alert-info">No attendance found for the selected filters.</div>
+    {% endif %}
+  {% endif %}
+
+  <!-- Performance Tab -->
+  {% if tab == 'performance' %}
+    <form method="POST" class="mb-3">
+      <input type="hidden" name="student" value="{{ selected_student }}">
+      <input type="hidden" name="att_start" value="{{ request.args.get('att_start','') }}">
+      <input type="hidden" name="att_end" value="{{ request.args.get('att_end','') }}">
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Classes Missed</label>
+          <input type="number" name="missed_classes" class="form-control"
+                 value="{{ request.form.get('missed_classes','0') }}">
+        </div>
+        <div class="col-md-8">
+          <label class="form-label">Reason for Absence</label>
+          {% set selected_reason = request.form.get('absence_reason','') %}
+          <select name="absence_reason" class="form-select">
+            <option value="">— Select —</option>
+            {% for reason in ['Sick','Family emergency','School exams','Unknown'] %}
+              <option value="{{ reason }}" {% if reason == selected_reason %}selected{% endif %}>{{ reason }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Homework Submission</label><br />
+          {% set selected_hw = request.form.get('homework_submission','') %}
+          {% for val in ['Always on time','Misses sometimes','Irregular/incomplete'] %}
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="homework_submission" value="{{ val }}"
+                     {% if selected_hw == val %}checked{% endif %}>
+              <label class="form-check-label">{{ val }}</label>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Missed Work Status</label>
+          {% set selected_status = request.form.get('missed_work_status','') %}
+          <select name="missed_work_status" class="form-select">
+            <option value="">— Select —</option>
+            {% for status in ['Caught up on all missed work','Partially caught up','Has not caught up on missed work'] %}
+              <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label"><strong>Behavioral Observations</strong></label><br />
+          <label class="mt-1"><u>✅ Positive Traits</u></label><br />
+          {% set positive_traits_selected = request.form.getlist('positive_traits') %}
+          {% for trait in ['Consistently puts effort','Very attentive in class','Improved significantly','Takes initiative','Respectful','Engages in discussions'] %}
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" name="positive_traits" value="{{ trait }}"
+                     {% if trait in positive_traits_selected %}checked{% endif %}>
+              <label class="form-check-label">{{ trait }}</label>
+            </div>
+          {% endfor %}
+
+          <br /><label class="mt-2"><u>⚠️ Needs Attention</u></label><br />
+          {% set needs_attention_selected = request.form.getlist('needs_attention') %}
+          {% for issue in ['Lacks focus','Gets distracted easily','Needs to participate more','Homework delayed','Unprepared for class'] %}
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" name="needs_attention" value="{{ issue }}"
+                     {% if issue in needs_attention_selected %}checked{% endif %}>
+              <label class="form-check-label">{{ issue }}</label>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Exceptional Notes</label>
+          <textarea name="free_text" class="form-control" rows="3">{{ request.form.get('free_text','') }}</textarea>
+        </div>
+
+        <div class="col-12 d-flex gap-2">
+          <button type="submit" name="generate_report" value="true" class="btn btn-success">Generate Report</button>
+        </div>
+      </div>
+    </form>
+
+    {% if report %}
+      <hr />
+      <div class="card mt-3">
+        <div class="card-header">Generated Performance Report</div>
+        <div class="card-body">
+          {{ report|safe }}
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+
+
+
+

@@ -1,0 +1,56 @@
+{% extends "layout.html" %}
+{% block title %}Register Student – Likhil LMS{% endblock %}
+
+{% block content %}
+  <h2 class="mb-4">Student Registration</h2>
+
+  <form method="POST" action="{{ url_for('submit') }}" class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Name</label>
+      <input type="text" name="name" class="form-control" required />
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">Grade</label>
+      <input type="number" name="grade" class="form-control" min="1" max="12" placeholder="e.g., 10" required />
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">Course</label>
+      <select name="course" class="form-select" required>
+        <option value="" selected disabled>— select —</option>
+        <option value="AP Statistics">AP Statistics</option>
+        <option value="SAT Math">SAT Math</option>
+        <option value="IB Math AA HL">IB Math AA HL</option>
+        <option value="IB Math AA SL">IB Math AA SL</option>
+        <option value="IB Math AI HL">IB Math AI HL</option>
+        <option value="IB Math AI SL">IB Math AI SL</option>
+        <option value="AP Calculus AB">AP Calculus AB</option>
+        <option value="AP Calculus BC">AP Calculus BC</option>
+        <option value="Precalculus">Precalculus</option>
+        <option value="A level">A level</option>
+        <option value="GCSE">GCSE</option>
+      </select>
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">School Name</label>
+      <input type="text" name="school" class="form-control" />
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">Email</label>
+      <input type="email" name="email" class="form-control" placeholder="parent@student.com" />
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">Mobile Number</label>
+      <input type="text" name="mobile" class="form-control" placeholder="+91XXXXXXXXXX" />
+    </div>
+
+    <div class="col-12 d-flex gap-2 mt-2">
+      <button type="submit" class="btn btn-primary">Submit</button>
+      <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+{% endblock %}

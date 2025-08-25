@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+{% block title %}Edit Student – Likhil LMS{% endblock %}
+
+{% block content %}
+  <h2 class="mb-4">Edit Student Details</h2>
+  <form method="POST">
+    <div class="mb-3">
+      <label class="form-label">Name</label>
+      <input type="text" name="name" class="form-control" value="{{ student['name'] }}" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Grade</label>
+      <input type="number" name="grade" class="form-control" value="{{ student['grade'] }}" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Course</label>
+      <input type="text" name="course" class="form-control" value="{{ student['course'] }}" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">School Name</label>
+      <input type="text" name="school" class="form-control" value="{{ student['school'] }}" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Email</label>
+      <input type="email" name="email" class="form-control" value="{{ student['email'] }}" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Mobile Number</label>
+      <input type="text" name="mobile" class="form-control" value="{{ student['mobile'] }}" required>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Update</button>
+      <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+{% endblock %}
+
