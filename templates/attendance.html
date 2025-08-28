@@ -2,29 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Likhil LMS – Attendance</title>
+  <title>Likhil Education LMS – Attendance</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
   <style>
-    body { background:#f8f9fa; }
-    .table thead th { white-space: nowrap; }
+    body {
+      background: #f5f7fb;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+    }
+    .navbar {
+      background: linear-gradient(90deg, #3f51b5, #5a55ae);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+    .navbar-brand {
+      font-weight: 600;
+      font-size: 1.25rem;
+    }
+    .nav-link {
+      color: #e0e0e0 !important;
+    }
+    .nav-link.active, .nav-link:hover {
+      color: #fff !important;
+      font-weight: 500;
+    }
+    .card {
+      border-radius: 12px;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+    }
+    thead {
+      background: #3f51b5;
+      color: #fff;
+    }
+    .btn-primary {
+      background: #3f51b5;
+      border: none;
+    }
+    .btn-primary:hover {
+      background: #2c3a9d;
+    }
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      color: #777;
+      font-size: 0.9rem;
+    }
   </style>
 </head>
 <body>
-  <!-- Navbar (same structure as dashboard) -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4">
-    <a class="navbar-brand" href="#">Likhil LMS</a>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark px-4">
+    <a class="navbar-brand" href="#"><i class="fa-solid fa-graduation-cap me-2"></i>Likhil Education LMS</a>
     <div class="collapse navbar-collapse">
       <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Students</a></li>
-        <li class="nav-item"><a class="nav-link active" href="{{ url_for('attendance') }}">Attendance</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('schedule') }}">Class Schedule</a></li>
-        <li class="nav-item"><a class="nav-link" href="#">Homework Status</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('payment_records') }}">Payment Records</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('payment_status') }}">Payment Status</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}"><i class="fa-solid fa-users me-1"></i> Students</a></li>
+        <li class="nav-item"><a class="nav-link active" href="{{ url_for('attendance') }}"><i class="fa-solid fa-clipboard-check me-1"></i> Attendance</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('schedule') }}"><i class="fa-solid fa-calendar-days me-1"></i> Class Schedule</a></li>
+        <li class="nav-item"><a class="nav-link" href="#"><i class="fa-solid fa-book-open me-1"></i> Homework Status</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('payment_records') }}"><i class="fa-solid fa-file-invoice-dollar me-1"></i> Payment Records</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('payment_status') }}"><i class="fa-solid fa-money-check-alt me-1"></i> Payment Status</a></li>
       </ul>
       <div class="d-flex">
-        <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm"><i class="fa-solid fa-right-from-bracket me-1"></i> Logout</a>
       </div>
     </div>
   </nav>
@@ -35,7 +74,7 @@
       <form method="GET" class="d-flex align-items-end gap-2">
         <div>
           <label class="form-label mb-1">Month</label>
-          <select name="month" class="form-select" onchange="this.form.submit()">
+          <select name="month" class="form-select shadow-sm" onchange="this.form.submit()">
             {% for m in months %}
               <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
             {% endfor %}
@@ -43,61 +82,66 @@
         </div>
       </form>
 
-      <!-- Client-side quick filter by student name -->
+      <!-- Search student -->
       <div class="ms-auto">
         <label class="form-label mb-1">Search student</label>
-        <input id="searchInput" class="form-control" placeholder="Type a student name…" />
+        <input id="searchInput" class="form-control shadow-sm" placeholder="Type a student name…" />
       </div>
     </div>
 
-    <div class="table-responsive">
-      <table class="table table-bordered table-hover align-middle" id="attTable">
-        <thead class="table-light">
-          <tr>
-            <!-- Prefer canonical columns; fall back to dynamic header if unknown -->
-            {% set has_standard = records and 'name' in records[0] %}
+    <div class="card p-3">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="attTable">
+          <thead>
+            <tr>
+              {% set has_standard = records and 'name' in records[0] %}
+              {% if has_standard %}
+                <th>Name</th>
+                <th>Course</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Duration (hrs)</th>
+              {% elif records and records[0] %}
+                {% for col in records[0].keys() %}
+                  <th>{{ col }}</th>
+                {% endfor %}
+              {% else %}
+                <th colspan="5" class="text-center">No records</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
             {% if has_standard %}
-              <th>Name</th>
-              <th>Course</th>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Duration (hrs)</th>
-            {% elif records and records[0] %}
-              {% for col in records[0].keys() %}
-                <th>{{ col }}</th>
+              {% for r in records %}
+                <tr>
+                  <td class="student">{{ r.get('name','') }}</td>
+                  <td>{{ r.get('course','') }}</td>
+                  <td>{{ r.get('date','') }}</td>
+                  <td>{{ r.get('time','') }}</td>
+                  <td>{{ r.get('duration','') }}</td>
+                </tr>
               {% endfor %}
             {% else %}
-              <th colspan="5" class="text-center">No records</th>
+              {% for row in records %}
+                <tr>
+                  {% for val in row.values() %}
+                    <td>{{ val }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
             {% endif %}
-          </tr>
-        </thead>
-        <tbody>
-          {% if has_standard %}
-            {% for r in records %}
-              <tr>
-                <td class="student">{{ r.get('name','') }}</td>
-                <td>{{ r.get('course','') }}</td>
-                <td>{{ r.get('date','') }}</td>
-                <td>{{ r.get('time','') }}</td>
-                <td>{{ r.get('duration','') }}</td>
-              </tr>
-            {% endfor %}
-          {% else %}
-            {% for row in records %}
-              <tr>
-                {% for val in row.values() %}
-                  <td>{{ val }}</td>
-                {% endfor %}
-              </tr>
-            {% endfor %}
-          {% endif %}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
+  <footer>
+    <p>&copy; {{ 2025 }} Likhil Education LMS</p>
+  </footer>
+
   <script>
-    // simple client-side filter by student name
+    // filter by student name
     const input = document.getElementById('searchInput');
     const rows = document.querySelectorAll('#attTable tbody tr');
     input?.addEventListener('input', () => {
@@ -111,5 +155,6 @@
   </script>
 </body>
 </html>
+
 
 

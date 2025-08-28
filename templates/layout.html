@@ -2,54 +2,149 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>{% block title %}Likhil LMS{% endblock %}</title>
+  <title>{% block title %}Likhil Education LMS{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
+  <style>
+    body {
+      background: #f5f7fb;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+    }
+    .table-primary {
+  --bs-table-bg: #4B49AC;       /* background */
+  --bs-table-color: #fff;       /* text color */
+  --bs-table-border-color: #3c3a92; /* slightly darker border */
+  --bs-table-striped-bg: #433f9c;
+  --bs-table-striped-color: #fff;
+  --bs-table-hover-bg: #5b57b5;
+  --bs-table-hover-color: #fff;
+}
+/* Style all tab headers */
+/* Base inactive tabs */
+.nav-tabs .nav-link {
+  color: #4B49AC !important;         /* purple text */
+  border: 1px solid #4B49AC;         /* purple border */
+  background-color: #f2f2f9;         /* very light lavender (not white) */
+  margin-right: 5px;
+  border-radius: 6px 6px 0 0;
+}
+
+/* Hover */
+.nav-tabs .nav-link:hover {
+  background-color: #e6e6fa;         /* soft lavender */
+  color: #3a378e !important;         /* darker purple */
+  border-color: #3a378e;
+}
+
+/* Active tab */
+.nav-tabs .nav-link.active {
+  background-color: #4B49AC;         /* solid purple */
+  color: #fff !important;            /* white text */
+  border-color: #4B49AC;
+  font-weight: 600;
+}
+
+
+    :root {
+  --bs-primary: #4B49AC;   /* your navbar purple */
+}
+    .navbar {
+      background: linear-gradient(90deg, #3f51b5, #5a55ae);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+    .navbar-brand {
+      font-weight: 600;
+      font-size: 1.25rem;
+    }
+    .nav-link {
+      color: #e0e0e0 !important;
+    }
+    .nav-link.active, .nav-link:hover {
+      color: #fff !important;
+      font-weight: 500;
+    }
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      padding: 15px 0;
+      background: #fff;
+      border-top: 1px solid #ddd;
+      color: #777;
+      font-size: 0.9rem;
+    }
+  </style>
 </head>
-<body class="bg-light">
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container-fluid">
-      <a class="navbar-brand" href="{{ url_for('dashboard') }}">Likhil LMS</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-              aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark px-4">
+    <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+      <i class="fa-solid fa-graduation-cap me-2"></i>Likhil Education LMS
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
 
-      <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
-               href="{{ url_for('dashboard') }}">Students</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'attendance' %}active{% endif %}"
-               href="{{ url_for('attendance') }}">Attendance</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'schedule' %}active{% endif %}"
-               href="{{ url_for('schedule') }}">Class Schedule</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'payment_records' %}active{% endif %}"
-               href="{{ url_for('payment_records') }}">Payment Records</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'payment_status' %}active{% endif %}"
-               href="{{ url_for('payment_status') }}">Payment Status</a>
-          </li>
-        </ul>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+             href="{{ url_for('dashboard') }}"><i class="fa-solid fa-users me-1"></i> Students</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'attendance' %}active{% endif %}"
+             href="{{ url_for('attendance') }}"><i class="fa-solid fa-clipboard-check me-1"></i> Attendance</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'schedule' %}active{% endif %}"
+             href="{{ url_for('schedule') }}"><i class="fa-solid fa-calendar-days me-1"></i> Class Schedule</a>
+        </li>
+        <ul class="navbar-nav ms-auto">
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+      <i class="fa-solid fa-users me-1"></i> Students
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint == 'attendance' %}active{% endif %}" href="{{ url_for('attendance') }}">
+      <i class="fa-solid fa-clipboard-check me-1"></i> Attendance
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint == 'performance' %}active{% endif %}" href="{{ url_for('student_report') }}">
+      <i class="fa-solid fa-chart-line me-1"></i> Student Report
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint == 'payment_records' %}active{% endif %}"
+       href="{{ url_for('payment_records') }}"><i class="fa-solid fa-file-invoice-dollar me-1"></i> Payment Records</a>
+  </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'payment_status' %}active{% endif %}"
+             href="{{ url_for('payment_status') }}"><i class="fa-solid fa-money-check-alt me-1"></i> Payment Status</a>
+        </li>
+      </ul>
 
-        <div class="d-flex">
-          <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
-        </div>
+      <div class="d-flex">
+        <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">
+          <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
+        </a>
       </div>
     </div>
   </nav>
 
+  <!-- Page content -->
   <main class="container py-4">
     {% block content %}{% endblock %}
   </main>
 
+  <!-- Footer -->
+  <footer>
+    <p>&copy; {{ 2025 }} Likhil Education LMS</p>
+  </footer>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+

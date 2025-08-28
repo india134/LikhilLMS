@@ -1,0 +1,181 @@
+{% extends "student_layout.html" %}
+
+{% block title %}{{ student.name }} – Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-3"><i class="fa-solid fa-user-graduate me-2"></i> {{ student.name }}’s Dashboard</h2>
+
+  <!-- Profile Card -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Profile Information</h5>
+      <div class="row">
+        <div class="col-md-6"><b>Grade:</b> {{ student.grade }}</div>
+        <div class="col-md-6"><b>Course:</b> {{ student.course }}</div>
+        <div class="col-md-6"><b>School:</b> {{ student.school }}</div>
+        <div class="col-md-6"><b>Email:</b> {{ student['email Id'] }}</div>
+        <div class="col-md-6"><b>Mobile:</b> {{ student['mobile number'] }}</div>
+        <div class="col-md-6"><b>Hourly Rate:</b> ₹{{ student.hourly_rate }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <ul class="nav nav-tabs mb-3" id="studentTabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#attendance">Attendance</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#payments">Payments</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#schedule">Schedule</a></li>
+  </ul>
+
+  <div class="tab-content">
+
+    <!-- Attendance -->
+    <div class="tab-pane fade show active" id="attendance">
+      <form method="GET" class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label class="form-label">Start Date</label>
+          <input type="date" class="form-control shadow-sm" name="att_start" value="{{ request.args.get('att_start','') }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">End Date</label>
+          <input type="date" class="form-control shadow-sm" name="att_end" value="{{ request.args.get('att_end','') }}">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-filter me-1"></i> Filter</button>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <a href="{{ url_for('student_dashboard', token=student['dashboard_token']) }}" class="btn btn-secondary w-100">
+            <i class="fa-solid fa-rotate-left me-1"></i> Reset
+          </a>
+        </div>
+      </form>
+
+      <h5>Classes Attended: {{ attendance|length }}</h5>
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead class="table-primary">
+            <tr>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Course</th>
+              <th>Duration (hrs)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in attendance %}
+            <tr>
+              <td>{{ row.date or '—' }}</td>
+              <td>{{ row.time }}</td>
+              <td>{{ row.course }}</td>
+              <td>{{ row.duration }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Payments -->
+    <div class="tab-pane fade" id="payments">
+      <form method="GET" class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label class="form-label">Start Date</label>
+          <input type="date" class="form-control shadow-sm" name="pay_start" value="{{ request.args.get('pay_start','') }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">End Date</label>
+          <input type="date" class="form-control shadow-sm" name="pay_end" value="{{ request.args.get('pay_end','') }}">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-filter me-1"></i> Filter</button>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <a href="{{ url_for('student_dashboard', token=student['dashboard_token']) }}" class="btn btn-secondary w-100">
+            <i class="fa-solid fa-rotate-left me-1"></i> Reset
+          </a>
+        </div>
+      </form>
+
+      <h5>Total Paid: ₹{{ payments|sum(attribute="amount") }}</h5>
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead class="table-primary">
+            <tr>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Advance Hours</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in payments %}
+            <tr>
+              <td>{{ row.cleared_date or '—' }}</td>
+              <td>{{ row.amount }}</td>
+              <td>{{ row.advance_hours }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Schedule -->
+    <div class="tab-pane fade" id="schedule">
+      <form method="GET" class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label class="form-label">Start Date</label>
+          <input type="date" class="form-control shadow-sm" name="sch_start" value="{{ request.args.get('sch_start','') }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">End Date</label>
+          <input type="date" class="form-control shadow-sm" name="sch_end" value="{{ request.args.get('sch_end','') }}">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-filter me-1"></i> Filter</button>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <a href="{{ url_for('student_dashboard', token=student['dashboard_token']) }}" class="btn btn-secondary w-100">
+            <i class="fa-solid fa-rotate-left me-1"></i> Reset
+          </a>
+        </div>
+      </form>
+
+      <h5>Upcoming Classes</h5>
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead class="table-primary">
+            <tr>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Course</th>
+              <th>Join</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in schedule %}
+            <tr>
+              <td>{{ row.date or '—' }}</td>
+              <td>{{ row.start_time }}</td>
+              <td>{{ row.course }}</td>
+              <td>
+                {% if row.meet_link %}
+                  <a href="{{ row.meet_link }}" target="_blank" class="btn btn-sm btn-success">
+                    <i class="fa-solid fa-video"></i> Join
+                  </a>
+                {% else %}
+                  <span class="text-muted">No link</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+

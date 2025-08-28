@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+{% block title %}Student Profile – Likhil LMS{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <h4 class="mb-0">👨‍🎓 {{ student.name }}</h4>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <p><strong>Grade:</strong> {{ student.grade }}</p>
+          <p><strong>Course:</strong> {{ student.course }}</p>
+          <p><strong>School:</strong> {{ student.school }}</p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>Email:</strong> {{ student['email Id'] }}</p>
+          <p><strong>Mobile:</strong> {{ student['mobile number'] }}</p>
+          <p><strong>Hourly Rate:</strong> ₹{{ student['Hourly Rate'] }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer text-end">
+      <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">⬅ Back to Dashboard</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

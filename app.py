@@ -4,6 +4,7 @@ from datetime import datetime, date, time
 from dotenv import load_dotenv
 from supabase import create_client
 import os
+from flask import abort
 import re
 import json
 import hmac
@@ -16,6 +17,8 @@ from flask import request, render_template, redirect, url_for
   # this is the one sending the POST to n8n
 from datetime import datetime
 import requests
+import uuid
+
 # ---------- ENV & CLIENT ----------
 load_dotenv()
 SUPABASE_URL  = os.environ["SUPABASE_URL"]
@@ -40,6 +43,39 @@ def login_required(f):
             return redirect(url_for("login"))
         return f(*a, **kw)
     return _wrap
+
+import uuid
+
+@app.route("/fix_tokens")
+def fix_tokens():
+    students = sb.table("Students").select("*").is_("dashboard_token", None).execute().data
+    for student in students:
+        sb.table("Students").update({
+            "dashboard_token": str(uuid.uuid4())
+        }).eq("id", student["id"]).execute()
+    return f"Fixed {len(students)} students"
+
+@app.route("/student_dashboard/<token>")
+def student_dashboard(token):
+    # fetch student by token
+    student = sb.table("Students").select("*").eq("dashboard_token", token).execute().data
+    if not student:
+        abort(404)
+
+    student = student[0]
+
+    attendance = sb.table("attendance").select("*").eq("name", student["name"]).execute().data
+    payments   = sb.table("payment_records").select("*").eq("name", student["name"]).execute().data
+    schedule   = sb.table("class_schedule").select("*").eq("name", student["name"]).execute().data
+
+    return render_template(
+        "student_dashboard.html",
+        student=student,
+        attendance=attendance,
+        payments=payments,
+        schedule=schedule
+    )
+
 
 @app.route("/", methods=["GET","POST"])
 @app.route("/login", methods=["GET","POST"])
@@ -80,18 +116,36 @@ def get_unique_courses():
 def register():
     return render_template("register.html")
 
+@app.route("/student/<int:student_id>")
+@login_required
+def student_profile(student_id):
+    # fetch student details from Students table
+    student = sb.table("Students").select("*").eq("id", student_id).execute().data
+    if not student:
+        return "Student not found", 404
+    return render_template("student_profile.html", student=student[0])
+
 @app.route("/submit", methods=["POST"])
 def submit():
     payload = {
-        "name":   request.form["name"],
-        "grade":  int(request.form.get("grade") or 0),
+        "name": request.form["name"],
+        "grade": int(request.form.get("grade") or 0),
         "course": request.form.get("course"),
         "school": request.form.get("school"),
-        "email Id":  request.form.get("email"),
+        "email Id": request.form.get("email"),
         "mobile number": request.form.get("mobile"),
+        "hourly_rate": _to_num(request.form.get("hourly_rate"), 0.0),
+        "dashboard_token": str(uuid.uuid4())  # ✅ add token
     }
+
     sb.table("Students").insert(payload).execute()
-    return render_template("dashboard.html", students=get_students(), unique_courses=get_unique_courses())
+
+    return render_template(
+        "dashboard.html",
+        students=get_students(),
+        unique_courses=get_unique_courses()
+    )
+
 
 # ---------- DASHBOARD ----------
 @app.route("/dashboard")
@@ -343,25 +397,34 @@ def payment_records():
 @app.route("/payment_status", methods=["GET","POST"])
 @login_required
 def payment_status():
+    # ✅ Get all student names for dropdown
     students = sorted([s["name"] for s in get_students()])
     status, class_details = None, []
 
     if request.method == "POST":
         selected = request.form.get("student")
-        rate     = _to_num(request.form.get("rate"))
 
+        # ✅ Fetch Hourly Rate directly from Students table
+        student_data = sb.table("Students").select("Hourly Rate").eq("name", selected).execute().data
+        if not student_data:
+            flash("No hourly rate found for this student. Please update their record.", "warning")
+            return render_template("payment_status.html", students=students, status=None, classes=[])
+
+        rate = _to_num(student_data[0].get("Hourly Rate", 0))
+
+        # ✅ Fetch payment records
         pays = sb.table("payment_records").select("*").eq("name", selected)\
                .order("cleared_date").execute().data or []
 
         cleared_date = datetime(1970,1,1).date()
-        adv_hrs = 0.0
+        adv_hrs, adv_amount = 0.0, 0.0
         if pays:
             last = pays[-1]
             cleared_date = pd.to_datetime(last["cleared_date"]).date()
             adv_hrs = _to_num(last.get("advance_hours"))
             adv_amount = _to_num(last.get("advance_amount"))
 
-        # attendance after cleared_date
+        # ✅ Attendance after cleared date
         att = sb.table("attendance").select("*").eq("name", selected)\
               .gte("date", str(cleared_date)).order("date").execute().data or []
 
@@ -385,11 +448,13 @@ def payment_status():
             "total_since": total_since,
             "pending_hrs": pending_hrs,
             "rate": rate,
-            "pending_amount": round(pending_hrs * rate-adv_hrs*rate-adv_amount, 2),
+            # ✅ Proper pending amount calculation
+            "pending_amount": round(pending_hrs * rate - adv_hrs * rate - adv_amount, 2),
         }
 
     return render_template("payment_status.html",
                            students=students, status=status, classes=class_details)
+
 
 # ---------- RESCHEDULE (same route shape) ----------
 @app.route("/schedule/reschedule/<int:row_index>", methods=["GET","POST"])
@@ -480,6 +545,8 @@ def student_report():
         "start_date": request.form.get("start_date"),
         "end_date": request.form.get("end_date")
     }
+    if "student_name" in report_data:
+        del report_data["student_name"]
     report_html = generate_huggingface_report(selected_student, **report_data) if selected_student else ""
     report = Markup(report_html)
 
@@ -495,6 +562,11 @@ def student_report():
         attendance_total_hours=attendance_total_hours,
         report=report
     )
+
+
+# ---------- Student Dashboard Route ----------
+
+
 
 # ------------------ MAIN ------------------
 if __name__ == "__main__":

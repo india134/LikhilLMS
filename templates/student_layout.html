@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% block title %}Likhil Education{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --brand-purple: #4B49AC;
+      --brand-purple-dark: #3a378e;
+    }
+    body {
+      background: #f5f7fb;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+    }
+     /* Force all table headers to purple */
+  .table thead {
+    background-color: #4B49AC !important; /* your brand purple */
+    color: #fff !important;
+  }
+
+  /* If you're using .table-primary, override it too */
+  .table-primary {
+    --bs-table-bg: #4B49AC !important;
+    --bs-table-color: #fff !important;
+    --bs-table-border-color: #3a378e !important;
+  }
+    /* Purple table headers */
+    .table thead {
+      background-color: var(--brand-purple) !important;
+      color: #fff !important;
+    }
+
+    /* Purple filter button */
+    .btn-primary {
+      background-color: var(--brand-purple) !important;
+      border-color: var(--brand-purple) !important;
+    }
+    .btn-primary:hover {
+      background-color: var(--brand-purple-dark) !important;
+      border-color: var(--brand-purple-dark) !important;
+    }
+
+    /* Tabs */
+    .nav-tabs .nav-link {
+      color: var(--brand-purple);
+      border: 1px solid var(--brand-purple);
+    }
+    .nav-tabs .nav-link.active {
+      background-color: var(--brand-purple);
+      color: #fff !important;
+    }
+  </style>
+</head>
+<body>
+  <main class="container py-4">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
