@@ -1,173 +1,99 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Likhil Education LMS – Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
-  <style>
-    body {
-      background: #f5f7fb;
-      font-family: "Segoe UI", Tahoma, sans-serif;
-    }
-    .navbar {
-      background: linear-gradient(90deg, #3f51b5, #5a55ae);
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    }
-    .navbar-brand { font-weight: 600; font-size: 1.25rem; }
-    .nav-link { color: #e0e0e0 !important; }
-    .nav-link.active, .nav-link:hover { color: #fff !important; font-weight: 500; }
+{% extends "layout.html" %}
 
-    .container h2 { font-weight: 600; }
+{% block title %}Dashboard{% endblock %}
 
-    .card {
-      border-radius: 12px;
-      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
-    }
-    .table { background: #fff; border-radius: 10px; overflow: hidden; }
-    thead { background: #3f51b5; color: #fff; }
-    tbody tr:hover { background: #f0f2ff; }
-
-    .btn-primary { background: #3f51b5; border: none; }
-    .btn-primary:hover { background: #2c3a9d; }
-
-    .btn-warning, .btn-danger, .btn-outline-primary {
-      font-size: 0.8rem;
-      padding: 4px 10px;
-      margin: 2px;
-    }
-    .student-link {
-      display: inline-block;
-      padding: 6px 14px;
-      background: #eaf1ff;
-      color: #0d6efd;
-      border: 1px solid #b6d4fe;
-      border-radius: 20px;
-      font-weight: 600;
-      text-decoration: none;
-      transition: all 0.25s ease;
-    }
-    .student-link:hover {
-      background: #0d6efd;
-      color: #fff;
-      border-color: #0d6efd;
-    }
-    .copy-link {
-      font-size: 0.8rem;
-      color: #6c757d;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-    }
-    .copy-link i { margin-right: 4px; }
-  </style>
-</head>
-<body>
-  <!-- Header -->
-  <nav class="navbar navbar-expand-lg navbar-dark px-4">
-    <a class="navbar-brand" href="#"><i class="fa-solid fa-graduation-cap me-2"></i>Likhil Education LMS</a>
-    <div class="collapse navbar-collapse">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link active" href="{{ url_for('dashboard') }}"><i class="fa-solid fa-users me-1"></i> Students</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('attendance') }}"><i class="fa-solid fa-clipboard-check me-1"></i> Attendance</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('schedule') }}"><i class="fa-solid fa-calendar-days me-1"></i> Class Schedule</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('payment_records') }}"><i class="fa-solid fa-file-invoice-dollar me-1"></i> Payment Records</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('payment_status') }}"><i class="fa-solid fa-money-check-alt me-1"></i> Payment Status</a></li>
-      </ul>
-      <div class="d-flex">
-        <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm"><i class="fa-solid fa-right-from-bracket me-1"></i> Logout</a>
-      </div>
+{% block content %}
+<div class="container mt-4">
+  <!-- Top actions -->
+  <div class="d-flex justify-content-between align-items-end mb-3">
+    <div class="me-3">
+      <label for="courseFilter" class="form-label mb-1">Filter by Course</label>
+      <select id="courseFilter" class="form-select shadow-sm">
+        <option value="All">All Courses</option>
+        {% for course in unique_courses %}
+          <option value="{{ course }}">{{ course }}</option>
+        {% endfor %}
+      </select>
     </div>
-  </nav>
-
-  <div class="container mt-4">
-    <!-- Top actions -->
-    <div class="d-flex justify-content-between align-items-end mb-3">
-      <div class="me-3">
-        <label for="courseFilter" class="form-label mb-1">Filter by Course</label>
-        <select id="courseFilter" class="form-select shadow-sm">
-          <option value="All">All Courses</option>
-          {% for course in unique_courses %}
-            <option value="{{ course }}">{{ course }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <a href="{{ url_for('register') }}" class="btn btn-primary shadow-sm">
-        <i class="fa-solid fa-user-plus me-1"></i> Add Student
-      </a>
-    </div>
-
-    <!-- Student Table -->
-    <div class="card p-3">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle" id="studentsTable">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Grade</th>
-              <th>Course</th>
-              <th>School</th>
-              <th>Email</th>
-              <th>Mobile</th>
-              <th>Dashboard</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for student in students %}
-              <tr data-course="{{ student['course'] or '' }}">
-                <td>
-                  <a href="{{ url_for('student_dashboard', token=student['dashboard_token']) }}" class="student-link" target="_blank">
-                    <i class="fa-solid fa-user"></i> {{ student['name'] }}
-                  </a>
-                </td>
-                <td>{{ student['grade'] }}</td>
-                <td>{{ student['course'] }}</td>
-                <td>{{ student['school'] }}</td>
-                <td>{{ student['email Id'] }}</td>
-                <td>{{ student['mobile number'] }}</td>
-                <td>
-                  <span class="copy-link" onclick="copyToClipboard('{{ request.host_url }}student_dashboard/{{ student['dashboard_token'] }}')">
-                    <i class="fa-solid fa-copy"></i> Copy Link
-                  </span>
-                </td>
-                <td>
-                  <a href="{{ url_for('edit_student', row_index=loop.index0) }}" class="btn btn-warning btn-sm"><i class="fa-solid fa-pen-to-square"></i></a>
-                  <a href="{{ url_for('delete_student', row_index=loop.index0) }}" class="btn btn-danger btn-sm"><i class="fa-solid fa-trash"></i></a>
-                  <a href="{{ url_for('student_dashboard', token=student['dashboard_token']) }}" class="btn btn-sm btn-outline-primary" target="_blank">
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Open
-                  </a>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <a href="{{ url_for('register') }}" class="btn text-white shadow-sm" style="background:#5a55ae;">
+      <i class="fa-solid fa-user-plus me-1"></i> Add Student
+    </a>
   </div>
 
-  <footer><p>&copy; {{ 2025 }} Likhil Education LMS</p></footer>
+  <!-- Student Table -->
+  <div class="card p-3">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle" id="studentsTable">
+        <thead style="background:#5a55ae; color:white;">
+          <tr>
+            <th>Name</th>
+            <th>Grade</th>
+            <th>Course</th>
+            <th>School</th>
+            <th>Email</th>
+            <th>Mobile</th>
+            <th>Dashboard</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for student in students %}
+            <tr data-course="{{ student['course'] or '' }}">
+              <td>
+                <a href="{{ url_for('student_dashboard', token=student['dashboard_token']) }}"
+                   class="student-link"
+                   target="_blank"
+                   style="display:inline-block; padding:6px 14px; background:#eaf1ff; color:#5a55ae;
+                          border:1px solid #b6d4fe; border-radius:20px; font-weight:600; text-decoration:none;">
+                  <i class="fa-solid fa-user"></i> {{ student['name'] }}
+                </a>
+              </td>
+              <td>{{ student['grade'] }}</td>
+              <td>{{ student['course'] }}</td>
+              <td>{{ student['school'] }}</td>
+              <td>{{ student['email Id'] }}</td>
+              <td>{{ student['mobile number'] }}</td>
+              <td>
+                <span class="copy-link" style="cursor:pointer; font-size:0.8rem; color:#6c757d;"
+                      onclick="copyToClipboard('{{ request.host_url }}student_dashboard/{{ student['dashboard_token'] }}')">
+                  <i class="fa-solid fa-copy"></i> Copy Link
+                </span>
+              </td>
+              <td>
+                <a href="{{ url_for('edit_student',sid=student['id']) }}" class="btn btn-warning btn-sm"><i class="fa-solid fa-pen-to-square"></i></a>
+                <a href="{{ url_for('delete_student', sid=student['id']) }}" class="btn btn-danger btn-sm"><i class="fa-solid fa-trash"></i></a>
+                <a href="{{ url_for('student_dashboard', token=student['dashboard_token']) }}"
+                   class="btn btn-sm text-white" style="background:#5a55ae;" target="_blank">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Open
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
-  <script>
-    const filterSelect = document.getElementById('courseFilter');
-    const rows = document.querySelectorAll('#studentsTable tbody tr');
-    filterSelect.addEventListener('change', () => {
-      const selected = filterSelect.value;
-      rows.forEach(row => {
-        const course = (row.dataset.course || '').trim();
-        row.style.display = (selected === 'All' || course === selected) ? '' : 'none';
-      });
+<script>
+  const filterSelect = document.getElementById('courseFilter');
+  const rows = document.querySelectorAll('#studentsTable tbody tr');
+  filterSelect.addEventListener('change', () => {
+    const selected = filterSelect.value;
+    rows.forEach(row => {
+      const course = (row.dataset.course || '').trim();
+      row.style.display = (selected === 'All' || course === selected) ? '' : 'none';
     });
+  });
 
-    function copyToClipboard(text) {
-      navigator.clipboard.writeText(text).then(() => {
-        alert("Link copied: " + text);
-      });
-    }
-  </script>
-</body>
-</html>
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert("Link copied: " + text);
+    });
+  }
+</script>
+{% endblock %}
+
 
 
 

@@ -132,8 +132,8 @@ def submit():
         "grade": int(request.form.get("grade") or 0),
         "course": request.form.get("course"),
         "school": request.form.get("school"),
-        "email Id": request.form.get("email"),
-        "mobile number": request.form.get("mobile"),
+        "email Id": request.form.get("email Id"),
+        "mobile number": request.form.get("mobile number", None), # Use the helper function
         "hourly_rate": _to_num(request.form.get("hourly_rate"), 0.0),
         "dashboard_token": str(uuid.uuid4())  # ✅ add token
     }
@@ -155,38 +155,33 @@ def dashboard():
     return render_template("dashboard.html", students=students, unique_courses=get_unique_courses())
 
 # ---------- CRUD: edit/delete student (same routes) ----------
-@app.route("/edit/<int:row_index>", methods=["GET","POST"])
-@login_required
-def edit_student(row_index):
-    # keep “row_index” behavior by loading ordered list then picking index
-    rows = get_students()
-    if row_index < 0 or row_index >= len(rows):
-        return "Not found", 404
-    student = rows[row_index]
-    sid = student["id"]
-
+@app.route("/edit_student/<int:sid>", methods=["GET", "POST"])
+def edit_student(sid):
     if request.method == "POST":
         updated = {
-            "name":   request.form["name"],
-            "grade":  int(request.form.get("grade") or 0),
-            "course": request.form.get("course"),
-            "school": request.form.get("school"),
-            "email Id":  request.form.get("email Id"),
-            "mobile number": request.form.get("mobile number"),
+            "name": request.form.get("name", ""),
+            "grade": int(request.form.get("grade") or 0),
+            "course": request.form.get("course", ""),
+            "school": request.form.get("school", ""),
+            "email Id": request.form.get("email Id", ""),
+            "mobile number": request.form.get("mobile number"), # Use the helper function
+            "hourly_rate": _to_num(request.form.get("hourly_rate")), # Use the helper function
         }
         sb.table("Students").update(updated).eq("id", sid).execute()
         return redirect(url_for("dashboard"))
 
-    return render_template("edit.html", student=student, row_index=row_index)
+    # fetch existing student data
+    student = sb.table("Students").select("*").eq("id", sid).single().execute().data
+    return render_template("edit.html", student=student)
 
-@app.route("/delete/<int:row_index>")
+
+@app.route("/delete_student/<int:sid>")
 @login_required
-def delete_student(row_index):
-    rows = get_students()
-    if row_index < 0 or row_index >= len(rows):
-        return "Not found", 404
-    sb.table("Students").delete().eq("id", rows[row_index]["id"]).execute()
+def delete_student(sid):
+    # delete directly by id
+    sb.table("Students").delete().eq("id", sid).execute()
     return redirect(url_for("dashboard"))
+
 
 # ---------- SCHEDULE ----------
 def _post_to_n8n_async(payload: dict):
@@ -355,23 +350,21 @@ def finish_schedule(index):
 @app.route("/attendance")
 @login_required
 def attendance():
-    # pull all, then offer month tabs like "Jul_2025"
     rows = sb.table("attendance").select("*").order("date", desc=True).execute().data or []
-    months = sorted({pd.to_datetime(r["date"]).strftime("%b_%Y") for r in rows})
-    selected = request.args.get("month", months[0] if months else None)
 
-    recs = []
-    if selected:
-        m = datetime.strptime(selected, "%b_%Y")
-        for r in rows:
-            dt = pd.to_datetime(r["date"])
-            if dt.year == m.year and dt.month == m.month:
-                recs.append(r)
+    start_date = request.args.get("start")
+    end_date = request.args.get("end")
 
-    return render_template("attendance.html",
-                           months=months,
-                           selected_month=selected,
-                           records=recs)
+    filtered = []
+    for r in rows:
+        dt = pd.to_datetime(r["date"]).date()
+        if start_date and dt < pd.to_datetime(start_date).date():
+            continue
+        if end_date and dt > pd.to_datetime(end_date).date():
+            continue
+        filtered.append(r)
+
+    return render_template("attendance.html", records=filtered)
 
 # ---------- PAYMENTS ----------
 @app.route("/payment_records", methods=["GET","POST"])
@@ -563,6 +556,39 @@ def student_report():
         report=report
     )
 
+@app.route("/attendance/edit/<record_id>", methods=["GET", "POST"])
+@login_required
+def edit_attendance(record_id):
+    # Fetch record by ID
+    record = sb.table("attendance").select("*").eq("id", record_id).execute().data
+    if not record:
+        return redirect(url_for("attendance"))
+
+    if request.method == "POST":
+        name = request.form.get("name")
+        course = request.form.get("course")
+        date = request.form.get("date")
+        time = request.form.get("time")
+        duration = request.form.get("duration")
+
+        sb.table("attendance").update({
+            "name": name,
+            "course": course,
+            "date": date,
+            "time": time,
+            "duration": duration
+        }).eq("id", record_id).execute()
+
+        return redirect(url_for("attendance"))
+
+    return render_template("edit_attendance.html", record=record[0])
+
+
+@app.route("/attendance/delete/<record_id>")
+@login_required
+def delete_attendance(record_id):
+    sb.table("attendance").delete().eq("id", record_id).execute()
+    return redirect(url_for("attendance"))
 
 # ---------- Student Dashboard Route ----------
 

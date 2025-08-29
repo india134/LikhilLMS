@@ -9,40 +9,48 @@
       </div>
       <div class="card-body p-4">
         <form method="POST" class="row g-3">
+          
           <div class="col-md-6">
             <label class="form-label">Name</label>
-            <input type="text" name="name" class="form-control shadow-sm" value="{{ student['name'] }}" required>
+            <input type="text" name="name" class="form-control shadow-sm" 
+                   value="{{ student['name'] or '' }}" required>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Grade</label>
-            <input type="number" name="grade" class="form-control shadow-sm" value="{{ student['grade'] }}" required>
+            <input type="number" name="grade" class="form-control shadow-sm" 
+                   value="{{ student['grade'] or '' }}" required>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Course</label>
-            <input type="text" name="course" class="form-control shadow-sm" value="{{ student['course'] }}" required>
+            <input type="text" name="course" class="form-control shadow-sm" 
+                   value="{{ student['course'] or '' }}" required>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">School Name</label>
-            <input type="text" name="school" class="form-control shadow-sm" value="{{ student['school'] }}" required>
+            <input type="text" name="school" class="form-control shadow-sm" 
+                   value="{{ student['school'] or '' }}">
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Email</label>
-            <input type="email" name="email" class="form-control shadow-sm" value="{{ student['email'] }}" required>
+            <input type="email" name="email Id" class="form-control shadow-sm" 
+                   value="{{ student['email Id'] or '' }}">
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Mobile Number</label>
-            <input type="text" name="mobile" class="form-control shadow-sm" value="{{ student['mobile'] }}" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Hourly Rate (₹)</label>
-            <input type="number" step="0.01" min="0" name="hourly_rate" class="form-control" value="{{ student['hourly_rate'] }}" required>
+            <input type="text" name="mobile number" class="form-control shadow-sm" 
+                   value="{{ student['mobile number'] or '' }}">
           </div>
 
+          <div class="col-md-6">
+            <label class="form-label">Hourly Rate (₹)</label>
+            <input type="number" step="0.01" min="0" name="hourly_rate" class="form-control shadow-sm" 
+                   value="{{ student['hourly_rate'] or '' }}">
+          </div>
 
           <div class="col-12 d-flex gap-2 mt-3">
             <button type="submit" class="btn btn-primary shadow-sm">
@@ -57,3 +65,4 @@
     </div>
   </div>
 {% endblock %}
+
