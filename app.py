@@ -65,8 +65,10 @@ def student_dashboard(token):
     student = student[0]
 
     attendance = sb.table("attendance").select("*").eq("name", student["name"]).execute().data
-    payments   = sb.table("payment_records").select("*").eq("name", student["name"]).execute().data
-    schedule   = sb.table("class_schedule").select("*").eq("name", student["name"]).execute().data
+    payments = sb.table("payment_records").select("*").eq("name", student["name"]).execute().data
+    
+    # 📝 FIX: Select the 'meet_link' column from the 'class_schedule' table
+    schedule = sb.table("class_schedule").select("date, start_time, end_time, course, meet_url").eq("name", student["name"]).execute().data
 
     return render_template(
         "student_dashboard.html",

@@ -147,9 +147,10 @@
           <thead class="table-primary">
             <tr>
               <th>Date</th>
-              <th>Time</th>
+              <th>Start Time</th>
+              <th>End Time</th>
               <th>Course</th>
-              <th>Join</th>
+              <th>Join Class</th>
             </tr>
           </thead>
           <tbody>
@@ -157,10 +158,11 @@
             <tr>
               <td>{{ row.date or '—' }}</td>
               <td>{{ row.start_time }}</td>
+              <td>{{ row.end_time }}</td>
               <td>{{ row.course }}</td>
               <td>
-                {% if row.meet_link %}
-                  <a href="{{ row.meet_link }}" target="_blank" class="btn btn-sm btn-success">
+                {% if row.meet_url %}
+                  <a href="{{ row.meet_url }}" target="_blank" class="btn btn-sm btn-primary">
                     <i class="fa-solid fa-video"></i> Join
                   </a>
                 {% else %}
