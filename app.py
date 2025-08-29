@@ -33,6 +33,7 @@ app.secret_key = SECRET
 N8N_CREATE_URL= (os.getenv("N8N_CREATE_URL") or "").strip()
 N8N_WEBHOOK_SECRET = "some random secret"
 N8N_DELETE_URL = os.getenv("N8N_DELETE_URL", "")
+print(N8N_DELETE_URL)
 
 
 # ---------- AUTH (same simple demo login) ----------
@@ -210,19 +211,28 @@ def _post_to_n8n_async(payload: dict):
             pass
 
 def _post_to_n8n_sync(url: str, payload: dict):
+    print(f"DELETE WEBHOOK CALLED")
+    print(f"URL: {url}")
+    
     if not url:
-        app.logger.error("n8n url empty; skipping")
+        print("ERROR: n8n URL is empty!")
         return
+        
     try:
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         headers = {"Content-Type": "application/json"}
-        if N8N_WEBHOOK_SECRET:
-            sig = hmac.new(N8N_WEBHOOK_SECRET.encode("utf-8"), body, hashlib.sha256).hexdigest()
-            headers["X-LMS-Signature"] = sig
-        r = requests.post(url, data=body, headers=headers, timeout=8)
-        app.logger.info(f"n8n delete → {r.status_code} {r.text[:200]}")
+        
+        # REMOVE THIS SIGNATURE BLOCK - IT'S BREAKING YOUR WEBHOOK
+        # if N8N_WEBHOOK_SECRET:
+        #     sig = hmac.new(N8N_WEBHOOK_SECRET.encode("utf-8"), body, hashlib.sha256).hexdigest()
+        #     headers["X-LMS-Signature"] = sig
+        
+        r = requests.post(url, data=body, headers=headers, timeout=10)
+        print(f"Response Status: {r.status_code}")
+        print(f"Response Text: {r.text}")
+            
     except Exception as e:
-        app.logger.exception(f"n8n delete failed: {e}")
+        print(f"Exception: {e}")
 
 
 @app.route("/schedule", methods=["GET", "POST"])
@@ -282,46 +292,92 @@ def schedule():
 @app.route("/schedule/delete/<int:row_index>", methods=["POST"])
 @login_required
 def delete_schedule(row_index):
+    print(f"\n🗑️ DELETE SCHEDULE CALLED - Row Index: {row_index}")
+    
     # Load rows in the same order the table shows
     rows = sb.table("class_schedule").select("*").order("id").execute().data or []
+    print(f"📊 Total schedule rows: {len(rows)}")
+    
     if row_index < 0 or row_index >= len(rows):
+        print(f"❌ Invalid row index: {row_index}")
         return "Not found", 404
 
     row = rows[row_index]
     schedule_id = row.get("id")
-    event_id    = row.get("google_event_id")  # may be None/empty
+    event_id = row.get("google_event_id", "")  
+    
+    print(f"🎯 Deleting schedule:")
+    print(f"   Schedule ID: {schedule_id}")
+    print(f"   Google Event ID: {event_id}")
+    print(f"   Student: {row.get('name')}")
+    print(f"   Date: {row.get('date')} {row.get('start_time')}")
 
-    # 1) Tell n8n to delete the calendar event (if we have the ID, great; if not, n8n will look it up)
-    payload = {"event":"class_deleted","source":"likhil_lms","row":{"id":schedule_id,"google_event_id":event_id}}
+    # 1) Tell n8n to delete the calendar event
+    payload = {
+        "event": "class_deleted",
+        "source": "likhil_lms",
+        "row": {
+            "id": schedule_id,
+            "google_event_id": event_id,
+            "name": row.get("name"),
+            "date": row.get("date"),
+            "start_time": row.get("start_time")
+        }
+    }
+    
+    print(f"🎯 N8N_DELETE_URL: {N8N_DELETE_URL}")
     _post_to_n8n_sync(N8N_DELETE_URL, payload)
 
     # 2) Delete the row from Supabase
+    print(f"🗄️ Deleting from Supabase...")
     sb.table("class_schedule").delete().eq("id", schedule_id).execute()
+    print(f"✅ Deleted from Supabase")
 
     return redirect(url_for("schedule"))
 
 def _fire_and_forget(url: str, payload: dict):
-    """POST JSON to n8n; ignore failures so the UI remains snappy."""
+    """Enhanced fire and forget with debugging"""
+    print(f"🚀 FIRE AND FORGET CALLED")
+    print(f"URL: {url}")
+    print(f"Payload: {json.dumps(payload, indent=2)}")
+    
     if not url:
+        print("❌ No URL provided to fire_and_forget")
         return
+        
     try:
         raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         headers = {"Content-Type": "application/json"}
-        if N8N_WEBHOOK_SECRET:
-            sig = hmac.new(N8N_WEBHOOK_SECRET.encode("utf-8"), raw, hashlib.sha256).hexdigest()
-            headers["X-LMS-Signature"] = sig
-        requests.post(url, data=raw, headers=headers, timeout=4)
+        
+        # Remove the signature block entirely
+        # if N8N_WEBHOOK_SECRET:
+        #    sig = hmac.new(N8N_WEBHOOK_SECRET.encode("utf-8"), raw, hashlib.sha256).hexdigest()
+        #    headers["X-LMS-Signature"] = sig
+            
+        print(f"📤 Fire-and-forget request to: {url}")
+        response = requests.post(url, data=raw, headers=headers, timeout=4)
+        print(f"✅ Fire-and-forget response: {response.status_code}")
+        
     except Exception as e:
+        print(f"💥 Fire-and-forget failed: {e}")
         app.logger.warning(f"n8n delete webhook failed: {e}")
 # FINISH = move row to attendance then delete from schedule
 @app.route("/schedule/finish/<int:index>")
 @login_required
 def finish_schedule(index):
+    print(f"\n🏁 FINISH SCHEDULE CALLED - Index: {index}")
+    
     # 1) Load list (ordered by id so index matches your UI)
     sched = sb.table("class_schedule").select("*").order("id").execute().data or []
     if index < 0 or index >= len(sched):
+        print(f"❌ Invalid index: {index}")
         return "Not found", 404
     row = sched[index]
+
+    print(f"🎯 Finishing schedule:")
+    print(f"   Schedule ID: {row.get('id')}")
+    print(f"   Google Event ID: {row.get('google_event_id')}")
+    print(f"   Student: {row.get('name')}")
 
     # 2) Write to attendance
     sb.table("attendance").insert({
@@ -332,17 +388,25 @@ def finish_schedule(index):
         "duration": _to_num(row.get("duration")),
     }).execute()
 
-    # 3) Ask n8n to delete the Google Calendar event (if we have an id)
+    # 3) Ask n8n to delete the Google Calendar event
     geid = (row.get("google_event_id") or "").strip()
+    print(f"🎯 Google Event ID for deletion: '{geid}'")
+    
     if geid:
-        _fire_and_forget(N8N_DELETE_URL, {
-            "event": "class_finished",       # same delete flow can use this OR "class_deleted"
+        payload = {
+            "event": "class_finished",
             "source": "likhil_lms",
             "row": {
                 "id": row.get("id"),
-                "google_event_id": geid
+                "google_event_id": geid,
+                "name": row.get("name"),
+                "date": row.get("date"),
+                "start_time": row.get("start_time")
             }
-        })
+        }
+        _fire_and_forget(N8N_DELETE_URL, payload)
+    else:
+        print("⚠️ No Google Event ID found - skipping n8n deletion")
 
     # 4) Delete the schedule row itself
     sb.table("class_schedule").delete().eq("id", row["id"]).execute()
