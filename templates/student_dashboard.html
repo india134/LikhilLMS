@@ -6,7 +6,6 @@
 <div class="container mt-4">
   <h2 class="mb-3"><i class="fa-solid fa-user-graduate me-2"></i> {{ student.name }}’s Dashboard</h2>
 
-  <!-- Profile Card -->
   <div class="card shadow-sm mb-4">
     <div class="card-body">
       <h5 class="card-title">Profile Information</h5>
@@ -16,21 +15,20 @@
         <div class="col-md-6"><b>School:</b> {{ student.school }}</div>
         <div class="col-md-6"><b>Email:</b> {{ student['email Id'] }}</div>
         <div class="col-md-6"><b>Mobile:</b> {{ student['mobile number'] }}</div>
-        <div class="col-md-6"><b>Hourly Rate:</b> ₹{{ student.hourly_rate }}</div>
+        <div class="col-md-6"><b>Hourly Rate:</b> {{ student.hourly_rate }}</div>
       </div>
     </div>
   </div>
 
-  <!-- Tabs -->
   <ul class="nav nav-tabs mb-3" id="studentTabs" role="tablist">
     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#attendance">Attendance</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#payments">Payments</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#schedule">Schedule</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#pending-fees">Pending Fees</a></li>
   </ul>
 
   <div class="tab-content">
 
-    <!-- Attendance -->
     <div class="tab-pane fade show active" id="attendance">
       <form method="GET" class="row g-3 mb-3">
         <div class="col-md-4">
@@ -76,7 +74,6 @@
       </div>
     </div>
 
-    <!-- Payments -->
     <div class="tab-pane fade" id="payments">
       <form method="GET" class="row g-3 mb-3">
         <div class="col-md-4">
@@ -120,7 +117,6 @@
       </div>
     </div>
 
-    <!-- Schedule -->
     <div class="tab-pane fade" id="schedule">
       <form method="GET" class="row g-3 mb-3">
         <div class="col-md-4">
@@ -174,6 +170,41 @@
           </tbody>
         </table>
       </div>
+    </div>
+
+    <div class="tab-pane fade" id="pending-fees">
+      <h5>Pending Payment Details</h5>
+      {% if pending_status %}
+        <div class="card card-body mb-3">
+          <p><b>Last Cleared Date:</b> {{ pending_status.cleared_date }}</p>
+          <p><b>Pending Hours:</b> {{ pending_status.pending_hrs }} hrs</p>
+          <p><b>Pending Amount:</b> ₹{{ pending_status.pending_amount }}</p>
+        </div>
+        <h5>Classes after last payment</h5>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead class="table-primary">
+              <tr>
+                <th>Date</th>
+                <th>Course</th>
+                <th>Duration</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in pending_classes %}
+              <tr>
+                <td>{{ row.Date }}</td>
+                <td>{{ row.Course }}</td>
+                <td>{{ row.Time }}</td>
+                <td>{{ row.Duration }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No pending fee data available. Please contact the administrator.</p>
+      {% endif %}
     </div>
 
   </div>

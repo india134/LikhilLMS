@@ -50,17 +50,34 @@
 
           <div class="col-md-6">
             <label class="form-label">Mobile Number</label>
-            <input type="text" name="mobile number" class="form-control shadow-sm" placeholder="+91XXXXXXXXXX" />
+            <div class="input-group shadow-sm">
+              <select name="mobile_country_code" class="form-select" style="max-width: 120px;">
+                <option value="+1">+1 (USA/Canada)</option>
+                <option value="+91" selected>+91 (India)</option>
+                <option value="+44">+44 (UK)</option>
+                <option value="+61">+61 (Australia)</option>
+              </select>
+              <input type="text" name="mobile number" class="form-control" placeholder="XXXXXXXXXX" />
+            </div>
           </div>
+          
           <div class="col-md-6">
             <label class="form-label">Parent Contact</label>
             <input type="text" name="parent_contact" class="form-control shadow-sm" placeholder="+91XXXXXXXXXX" />
           </div>
-          <div class="col-md-6">
-            <label class="form-label">Hourly Rate (₹)</label>
-            <input type="number" step="0.01" min="0" name="hourly_rate" class="form-control" placeholder="e.g., 800" required />
-          </div>
 
+          <div class="col-md-6">
+            <label class="form-label">Hourly Rate</label>
+            <div class="input-group shadow-sm">
+              <select name="currency" class="form-select" style="max-width: 100px;" required>
+                <option value="INR" selected>₹ INR</option>
+                <option value="USD">$ USD</option>
+                <option value="EUR">€ EUR</option>
+                <option value="GBP">£ GBP</option>
+              </select>
+              <input type="number" step="0.01" min="0" name="hourly_rate" class="form-control" placeholder="e.g., 800" required />
+            </div>
+          </div>
 
           <div class="col-12 d-flex gap-2 mt-3">
             <button type="submit" class="btn btn-primary shadow-sm">

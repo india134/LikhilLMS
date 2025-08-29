@@ -42,14 +42,38 @@
 
           <div class="col-md-6">
             <label class="form-label">Mobile Number</label>
-            <input type="text" name="mobile number" class="form-control shadow-sm" 
-                   value="{{ student['mobile number'] or '' }}">
+            <div class="input-group shadow-sm">
+              <select name="mobile_country_code" class="form-select" style="max-width: 120px;">
+                <option value="+1" {% if student.mobile_country_code == "+1" %}selected{% endif %}>+1 (USA/Canada)</option>
+                <option value="+91" {% if student.mobile_country_code == "+91" %}selected{% endif %}>+91 (India)</option>
+                <option value="+44" {% if student.mobile_country_code == "+44" %}selected{% endif %}>+44 (UK)</option>
+                <option value="+61" {% if student.mobile_country_code == "+61" %}selected{% endif %}>+61 (Australia)</option>
+                <option value="+49" {% if student.mobile_country_code == "+49" %}selected{% endif %}>+49 (Germany)</option>
+                <option value="+31" {% if student.mobile_country_code == "+31" %}selected{% endif %}>+31 (Netherlands)</option>
+              </select>
+              <input type="text" name="mobile number" class="form-control" 
+                     value="{{ student['mobile number'] or '' }}">
+            </div>
+          </div>
+          
+          <div class="col-md-6">
+            <label class="form-label">Parent Contact</label>
+            <input type="text" name="parent_contact" class="form-control shadow-sm" 
+                   value="{{ student['parent_contact'] or '' }}">
           </div>
 
           <div class="col-md-6">
-            <label class="form-label">Hourly Rate (₹)</label>
-            <input type="number" step="0.01" min="0" name="hourly_rate" class="form-control shadow-sm" 
-                   value="{{ student['hourly_rate'] or '' }}">
+            <label class="form-label">Hourly Rate</label>
+            <div class="input-group shadow-sm">
+              <select name="currency" class="form-select" style="max-width: 100px;">
+                <option value="INR" {% if student.currency == "INR" %}selected{% endif %}>₹ INR</option>
+                <option value="USD" {% if student.currency == "USD" %}selected{% endif %}>$ USD</option>
+                <option value="EUR" {% if student.currency == "EUR" %}selected{% endif %}>€ EUR</option>
+                <option value="GBP" {% if student.currency == "GBP" %}selected{% endif %}>£ GBP</option>
+              </select>
+              <input type="number" step="0.01" min="0" name="hourly_rate" class="form-control" 
+                     value="{{ student.hourly_rate or '' }}">
+            </div>
           </div>
 
           <div class="col-12 d-flex gap-2 mt-3">

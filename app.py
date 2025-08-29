@@ -64,21 +64,68 @@ def student_dashboard(token):
         abort(404)
 
     student = student[0]
+    selected = student["name"] # get student's name
 
-    attendance = sb.table("attendance").select("*").eq("name", student["name"]).execute().data
-    payments = sb.table("payment_records").select("*").eq("name", student["name"]).execute().data
+    attendance = sb.table("attendance").select("*").eq("name", selected).execute().data
+    payments = sb.table("payment_records").select("*").eq("name", selected).execute().data
     
     # 📝 FIX: Select the 'meet_link' column from the 'class_schedule' table
-    schedule = sb.table("class_schedule").select("date, start_time, end_time, course, meet_url").eq("name", student["name"]).execute().data
+    schedule = sb.table("class_schedule").select("date, start_time, end_time, course, meet_url").eq("name", selected).execute().data
+    
+    # ✅ NEW: Calculate pending fee status right in the route
+    status, class_details = None, []
+    
+    student_data = sb.table("Students").select("hourly_rate").eq("name", selected).execute().data
+    if student_data:
+        rate = _to_num(student_data[0].get("hourly_rate", 0))
+
+        pays = sb.table("payment_records").select("*").eq("name", selected)\
+               .order("cleared_date").execute().data or []
+        
+        cleared_date = datetime(1970,1,1).date()
+        adv_hrs, adv_amount = 0.0, 0.0
+        if pays:
+            last = pays[-1]
+            cleared_date = pd.to_datetime(last["cleared_date"]).date()
+            adv_hrs = _to_num(last.get("advance_hours"))
+            adv_amount = _to_num(last.get("advance_amount"))
+
+        att = sb.table("attendance").select("*").eq("name", selected)\
+              .gte("date", str(cleared_date)).order("date").execute().data or []
+
+        total_since = 0.0
+        for a in att:
+            d = pd.to_datetime(a["date"]).date()
+            if d > cleared_date:
+                total_since += _to_num(a.get("duration"))
+                class_details.append({
+                    "Date": a["date"],
+                    "Course": a.get("course",""),
+                    "Time": a.get("time",""),
+                    "Duration": _to_num(a.get("duration"))
+                })
+        
+        pending_hrs = max(total_since - adv_hrs, 0.0)
+        
+        status = {
+            "student": selected,
+            "cleared_date": str(cleared_date),
+            "advance_hrs": adv_hrs,
+            "total_since": total_since,
+            "pending_hrs": pending_hrs,
+            "rate": rate,
+            "pending_amount": round(pending_hrs * rate, 2),
+        }
 
     return render_template(
         "student_dashboard.html",
         student=student,
         attendance=attendance,
         payments=payments,
-        schedule=schedule
+        schedule=schedule,
+        pending_status=status,
+        pending_classes=class_details
     )
-
 
 @app.route("/", methods=["GET","POST"])
 @app.route("/login", methods=["GET","POST"])
@@ -158,17 +205,15 @@ def dashboard():
     return render_template("dashboard.html", students=students, unique_courses=get_unique_courses())
 
 # ---------- CRUD: edit/delete student (same routes) ----------
+# ... other code ...
+
 @app.route("/edit_student/<int:sid>", methods=["GET", "POST"])
 def edit_student(sid):
     if request.method == "POST":
         updated = {
-            "name": request.form.get("name", ""),
-            "grade": int(request.form.get("grade") or 0),
-            "course": request.form.get("course", ""),
-            "school": request.form.get("school", ""),
-            "email Id": request.form.get("email Id", ""),
-            "mobile number": request.form.get("mobile number"), # Use the helper function
-            "hourly_rate": _to_num(request.form.get("hourly_rate")), # Use the helper function
+            # ... other fields ...
+            "hourly_rate": _to_num(request.form.get("hourly_rate")), # Ensures a number is saved
+            "currency": request.form.get("currency") # Saves the string currency code
         }
         sb.table("Students").update(updated).eq("id", sid).execute()
         return redirect(url_for("dashboard"))
@@ -177,7 +222,7 @@ def edit_student(sid):
     student = sb.table("Students").select("*").eq("id", sid).single().execute().data
     return render_template("edit.html", student=student)
 
-
+# ... other code ...
 @app.route("/delete_student/<int:sid>")
 @login_required
 def delete_student(sid):
@@ -460,16 +505,28 @@ def payment_status():
     students = sorted([s["name"] for s in get_students()])
     status, class_details = None, []
 
+    # 📝 New: Currency mapping
+    CURRENCY_SYMBOLS = {
+        "INR": "₹",
+        "USD": "$",
+        "EUR": "€",
+        "GBP": "£"
+    }
+    
+    currency_symbol = "₹" # default symbol
+
     if request.method == "POST":
         selected = request.form.get("student")
 
-        # ✅ Fetch Hourly Rate directly from Students table
-        student_data = sb.table("Students").select("Hourly Rate").eq("name", selected).execute().data
+        # ✅ Fetch Hourly Rate and Currency directly from Students table
+        student_data = sb.table("Students").select("hourly_rate, currency").eq("name", selected).execute().data
         if not student_data:
             flash("No hourly rate found for this student. Please update their record.", "warning")
-            return render_template("payment_status.html", students=students, status=None, classes=[])
+            return render_template("payment_status.html", students=students, status=None, classes=[], currency_symbol=currency_symbol)
 
-        rate = _to_num(student_data[0].get("Hourly Rate", 0))
+        rate = _to_num(student_data[0].get("hourly_rate", 0))
+        currency_code = student_data[0].get("currency", "INR")
+        currency_symbol = CURRENCY_SYMBOLS.get(currency_code, "₹")
 
         # ✅ Fetch payment records
         pays = sb.table("payment_records").select("*").eq("name", selected)\
@@ -508,12 +565,11 @@ def payment_status():
             "pending_hrs": pending_hrs,
             "rate": rate,
             # ✅ Proper pending amount calculation
-            "pending_amount": round(pending_hrs * rate - adv_hrs * rate - adv_amount, 2),
+            "pending_amount": round(pending_hrs * rate, 2),
         }
 
     return render_template("payment_status.html",
-                           students=students, status=status, classes=class_details)
-
+                           students=students, status=status, classes=class_details, currency_symbol=currency_symbol)
 
 # ---------- RESCHEDULE (same route shape) ----------
 @app.route("/schedule/reschedule/<int:row_index>", methods=["GET","POST"])

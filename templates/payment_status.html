@@ -5,7 +5,6 @@
   <div class="container py-3">
     <h2 class="mb-4"><i class="fa-solid fa-money-check-alt me-2"></i> Payment Status</h2>
 
-    <!-- Calculator Form -->
     <div class="card shadow-sm border-0 rounded-3 mb-4">
       <div class="card-header text-white" style="background: linear-gradient(90deg,#3f51b5,#5a55ae);">
         <i class="fa-solid fa-calculator me-1"></i> Calculate Payment Status
@@ -22,8 +21,6 @@
             </select>
           </div>
 
-          
-
           <div class="col-md-2 d-grid">
             <label class="form-label invisible">.</label>
             <button type="submit" class="btn btn-primary shadow-sm">
@@ -35,7 +32,6 @@
     </div>
 
     {% if status %}
-      <!-- Summary Cards -->
       <div class="row g-3 mb-4">
         <div class="col-md-3">
           <div class="card h-100 shadow-sm border-0">
@@ -71,7 +67,6 @@
         </div>
       </div>
 
-      <!-- Amount Due -->
       <div class="alert alert-warning shadow-sm d-flex justify-content-between align-items-center">
         <div>
           <div class="fw-semibold">Pending Hours:</div>
@@ -79,15 +74,14 @@
         </div>
         <div>
           <div class="fw-semibold">Hourly Rate:</div>
-          <div class="fs-5">₹{{ status.rate }}</div>
+          <div class="fs-5">{{ currency_symbol }}{{ status.rate }}</div>
         </div>
         <div class="text-end">
           <div class="fw-semibold">Amount Due</div>
-          <div class="fs-3 fw-bold text-danger">₹{{ status.pending_amount }}</div>
+          <div class="fs-3 fw-bold text-danger">{{ currency_symbol }}{{ status.pending_amount }}</div>
         </div>
       </div>
 
-      <!-- Classes contributing to dues -->
       {% if classes %}
         <h5 class="mt-4"><i class="fa-solid fa-chalkboard-teacher me-2"></i> Classes Since {{ status.cleared_date }}</h5>
         <div class="card shadow-sm border-0">
@@ -118,5 +112,4 @@
     {% endif %}
   </div>
 {% endblock %}
-
 
