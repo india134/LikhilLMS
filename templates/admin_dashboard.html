@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Likhil LMS – Admin Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
+  <style>
+    body { background:#f4f6fc; font-family:"Segoe UI",Tahoma,sans-serif; }
+    .card { border-radius:15px; box-shadow:0 4px 12px rgba(0,0,0,0.15); margin-bottom:2rem; }
+    .header-bar { background:#3f51b5; color:white; padding:1rem; border-radius:15px 15px 0 0; }
+    .btn-success { background:#388e3c; border:none; }
+    .btn-danger { background:#d32f2f; border:none; }
+    .collapse-inner { background:#fafafa; padding:0.75rem 1rem; border-radius:10px; }
+  </style>
+</head>
+<body>
+<div class="container mt-4">
+
+  <!-- Pending Tutors -->
+  <div class="card">
+    <div class="header-bar">
+      <h4><i class="fa-solid fa-hourglass-half"></i> Pending Tutors</h4>
+    </div>
+    <div class="card-body">
+      {% if pending_tutors %}
+      <div class="accordion" id="pendingAccordion">
+        {% for t in pending_tutors %}
+        <div class="accordion-item mb-2">
+          <h2 class="accordion-header" id="headingPending{{ loop.index }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePending{{ loop.index }}">
+              {{ t.full_name }}
+              <span class="badge bg-warning text-dark ms-2">Pending</span>
+            </button>
+          </h2>
+          <div id="collapsePending{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#pendingAccordion">
+            <div class="accordion-body collapse-inner">
+              <p><strong>Email:</strong> {{ t.email or "N/A" }}</p>
+              <a href="{{ url_for('toggle_tutor', user_id=t.user_id) }}" class="btn btn-sm btn-success">
+                <i class="fa-solid fa-check"></i> Approve
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted">No pending tutors.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Active Tutors -->
+  <div class="card">
+    <div class="header-bar">
+      <h4><i class="fa-solid fa-users"></i> Active Tutors</h4>
+    </div>
+    <div class="card-body">
+      {% if active_tutors %}
+      <div class="accordion" id="activeAccordion">
+        {% for t in active_tutors %}
+        <div class="accordion-item mb-2">
+          <h2 class="accordion-header" id="headingActive{{ loop.index }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseActive{{ loop.index }}">
+              {{ t.full_name }}
+              <span class="badge bg-success ms-2">Active</span>
+            </button>
+          </h2>
+          <div id="collapseActive{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#activeAccordion">
+            <div class="accordion-body collapse-inner">
+              <p><strong>Email:</strong> {{ t.email or "N/A" }}</p>
+              <a href="{{ url_for('toggle_tutor', user_id=t.user_id) }}" class="btn btn-sm btn-danger">
+                <i class="fa-solid fa-ban"></i> Deactivate
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted">No active tutors yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+

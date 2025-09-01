@@ -6,6 +6,7 @@ from supabase import create_client
 import os
 from flask import abort
 import re
+import markdown
 import json
 import hmac
 import hashlib
@@ -23,7 +24,8 @@ import uuid
 load_dotenv()
 SUPABASE_URL  = os.environ["SUPABASE_URL"]
 SERVICE_KEY   = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-HF_TOKEN      = os.getenv("HUGGINGFACE_API_KEY", "")
+SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
+
 SECRET        = os.getenv("FLASK_SECRET", "dev")
 
 sb = create_client(SUPABASE_URL, SERVICE_KEY)
@@ -33,19 +35,21 @@ app.secret_key = SECRET
 N8N_CREATE_URL= (os.getenv("N8N_CREATE_URL") or "").strip()
 N8N_WEBHOOK_SECRET = "some random secret"
 N8N_DELETE_URL = os.getenv("N8N_DELETE_URL", "")
-print(N8N_DELETE_URL)
+
+from functools import wraps
+from flask import session, redirect, url_for
 
 
-# ---------- AUTH (same simple demo login) ----------
-def login_required(f):
-    @wraps(f)
-    def _wrap(*a, **kw):
-        if "user" not in session:
-            return redirect(url_for("login"))
-        return f(*a, **kw)
-    return _wrap
+
+
+
 
 import uuid
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
 
 @app.route("/fix_tokens")
 def fix_tokens():
@@ -59,7 +63,8 @@ def fix_tokens():
 @app.route("/student_dashboard/<token>")
 def student_dashboard(token):
     # fetch student by token
-    student = sb.table("Students").select("*").eq("dashboard_token", token).execute().data
+    student = sb.table("Students").select("*").eq("dashboard_token", token).eq("tutor_id", session.get("tutor_id")).execute().data
+
     if not student:
         abort(404)
 
@@ -127,20 +132,283 @@ def student_dashboard(token):
         pending_classes=class_details
     )
 
-@app.route("/", methods=["GET","POST"])
-@app.route("/login", methods=["GET","POST"])
-def login():
+@app.route("/admin_dashboard")
+
+def admin_dashboard():
+
+    if "user_id" not in session or session.get("role") != "admin":
+        return redirect(url_for("admin_login"))
+
+    org_id = session.get("org_id")
+    if not org_id:
+        return "No organisation assigned", 400
+
+    # Fetch tutors of this organisation
+    tutors = sb.table("profiles").select(
+        "user_id, full_name, email, role, is_active"
+    ).eq("org_id", org_id).eq("role", "tutor").execute().data or []
+
+    # Split tutors
+    pending_tutors = [t for t in tutors if not t["is_active"]]
+    active_tutors  = [t for t in tutors if t["is_active"]]
+
+    return render_template(
+        "admin_dashboard.html",
+        pending_tutors=pending_tutors,
+        active_tutors=active_tutors
+    )
+
+
+@app.route("/god_dashboard")
+
+def god_dashboard():
+    if "user_id" not in session or session.get("role") != "god_admin":
+        return redirect(url_for("god_login"))
+
+    # Fetch all profiles
+    profiles = sb.table("profiles").select(
+        "user_id, full_name, email, role, org_id, is_active"
+    ).execute().data or []
+
+    # Fetch organisations
+    orgs = sb.table("organizations").select("id, name").execute().data or []
+    org_map = {o["id"]: o["name"] for o in orgs}
+
+    # Split profiles
+    org_admins_active   = [p for p in profiles if p["role"] == "admin" and p["is_active"]]
+    org_admins_pending  = [p for p in profiles if p["role"] == "admin" and not p["is_active"]]
+    solo_tutors_active  = [p for p in profiles if p["role"] == "tutor" and not p["org_id"] and p["is_active"]]
+    solo_tutors_pending = [p for p in profiles if p["role"] == "tutor" and not p["org_id"] and not p["is_active"]]
+    org_tutors          = [p for p in profiles if p["role"] == "tutor" and p["org_id"]]
+
+    # Build map: org_id -> tutors list
+    tutors_by_org = {}
+    for t in org_tutors:
+        tutors_by_org.setdefault(t["org_id"], []).append(t)
+
+    return render_template(
+        "god_dashboard.html",
+        org_admins_active=org_admins_active,
+        org_admins_pending=org_admins_pending,
+        solo_tutors_active=solo_tutors_active,
+        solo_tutors_pending=solo_tutors_pending,
+        tutors_by_org=tutors_by_org,
+        org_map=org_map
+    )
+
+
+
+
+
+@app.route("/tutor_login", methods=["GET", "POST"])
+def tutor_login():
     if request.method == "POST":
-        if request.form["username"] == "admin" and request.form["password"] == "1234":
-            session["user"] = "admin"
-            return redirect(url_for("dashboard"))
-        return render_template("login.html", error="Invalid credentials")
-    return render_template("login.html")
+        email = request.form["email"]
+        password = request.form["password"]
+
+        try:
+            # Step 1: Authenticate with Supabase Auth
+            resp = sb.auth.sign_in_with_password({"email": email, "password": password})
+            auth_user_id = str(resp.user.id)
+
+            # Step 2: Fetch tutor profile from profiles table
+            prof = (
+                sb.table("profiles")
+                .select("user_id, role, is_active, org_id, full_name")
+                .eq("user_id", auth_user_id)
+                .single()
+                .execute()
+                .data
+            )
+
+            if not prof:
+                flash("No profile found. Please register first.", "danger")
+                return redirect(url_for("register_tutor"))
+
+            if prof["role"] != "tutor":
+                flash("You are not authorized as a tutor.", "danger")
+                return redirect(url_for("tutor_login"))
+
+            if not prof["is_active"]:
+                flash("Your account is pending approval from admin.", "warning")
+                return redirect(url_for("tutor_login"))
+
+            # Step 3: Save details in session
+            session["user_id"] = prof["user_id"]
+            session["role"] = "tutor"
+            session["tutor_id"] = prof["user_id"]   # 👈 important
+            session["org_id"] = prof.get("org_id")
+
+            flash("Login successful!", "success")
+            return redirect(url_for("dashboard"))   # or tutor dashboard
+
+        except Exception as e:
+            print("Tutor login error:", e)
+            flash("Invalid login credentials.", "danger")
+            return redirect(url_for("tutor_login"))
+
+    return render_template("tutor_login.html")
+
+
+
+
+@app.route("/admin_login", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        email = request.form["email"]
+        password = request.form["password"]
+
+        # Step 1: Supabase Auth se verify karo
+        try:
+            resp = sb.auth.sign_in_with_password(
+                {"email": email, "password": password}
+            )
+        except Exception as e:
+            print("Auth error:", e)
+            return render_template("admin_login.html", error="Invalid credentials")
+
+        if not resp.user:
+            return render_template("admin_login.html", error="Invalid credentials")
+
+        user_id = str(resp.user.id)
+
+        # Step 2: Profiles table me se user entry nikalo
+        prof = (
+            sb.table("profiles")
+            .select("user_id, role, is_active, org_id")
+            .eq("user_id", user_id)
+            .execute()
+            .data
+        )
+
+        if not prof:
+            return render_template("admin_login.html", error="No profile found")
+
+        profile = prof[0]
+
+        # Step 3: Sirf Admin + Active ko allow karo
+        if profile["role"] != "admin":
+            return render_template("admin_login.html", error="Not an admin account")
+
+        if not profile["is_active"]:
+            return render_template("admin_login.html", error="Account not approved yet")
+
+        # Step 4: Ab ensure karo ki yeh org_id actually organizations table me exist karta hai
+        org_check = (
+            sb.table("organizations")
+            .select("id, name")
+            .eq("id", profile["org_id"])
+            .execute()
+            .data
+        )
+
+        if not org_check:
+            return render_template("admin_login.html", error="Organization not found")
+
+        # Step 5: Save session
+        session["user_id"] = profile["user_id"]
+        session["role"] = profile["role"]
+        session["org_id"] = profile["org_id"]
+        session["org_name"] = org_check[0]["name"]
+
+        return redirect(url_for("admin_dashboard"))
+
+    return render_template("admin_login.html")
+
+
+@app.route("/god_login", methods=["GET", "POST"])
+def god_login():
+    if request.method == "POST":
+        email = request.form["email"]
+        password = request.form["password"]
+
+        # Hardcoded God Admin credentials
+        if email == "likhileducation@gmail.com" and password == "supersecret":
+            session["user_id"] = "god-admin"
+            session["role"] = "god_admin"
+            session["name"] = "Super Admin"
+            return redirect(url_for("god_dashboard"))
+        else:
+            flash("Invalid God Admin credentials", "danger")
+
+    return render_template("god_login.html")
+
+
+
+
+@app.route("/admin_tutors")
+def admin_tutors():
+    role = session.get("role")
+    if "user_id" not in session or session.get("role") != "admin":
+        return redirect(url_for("admin_login"))
+
+
+    if role == "god_admin":
+        # God admin: solo tutors + org admins who are not active
+        tutors = sb.table("profiles").select("*") \
+                   .or_("and(is_active.eq.false,org_id.is.null),and(is_active.eq.false,role.eq.admin)") \
+                   .execute().data or []
+    elif role == "admin":
+        # Org admin: tutors in the same org, not yet active
+        tutors = sb.table("profiles").select("*") \
+                   .eq("org_id", session["org_id"]) \
+                   .eq("role", "tutor") \
+                   .eq("is_active", False) \
+                   .execute().data or []
+    else:
+        return "Unauthorized", 403
+
+    return render_template("admin_tutors.html", tutors=tutors)
+
+
+
+@app.route("/toggle_tutor/<uuid:user_id>")
+def toggle_tutor(user_id):
+    role = session.get("role")
+    current_org_id = session.get("org_id")
+
+    if "user_id" not in session:
+        return redirect(url_for("index"))   # logout → index
+
+    # Fetch profile
+    prof = sb.table("profiles").select("is_active, role, org_id").eq("user_id", str(user_id)).execute().data
+    if not prof:
+        return "User not found", 404
+
+    profile = prof[0]
+    new_status = not profile["is_active"]
+
+    if role == "god_admin":   # 👈 FIX HERE
+        # God Admin can approve solo tutors + org admins
+        if profile["org_id"] is None or profile["role"] == "admin":
+            sb.table("profiles").update({"is_active": new_status}).eq("user_id", str(user_id)).execute()
+        else:
+            return "Unauthorized", 403
+        return redirect(url_for("god_dashboard"))
+
+    elif role == "admin":
+        # Org Admin can approve tutors in their org
+        if profile["role"] == "tutor" and profile["org_id"] == current_org_id:
+            sb.table("profiles").update({"is_active": new_status}).eq("user_id", str(user_id)).execute()
+        else:
+            return "Unauthorized", 403
+        return redirect(url_for("admin_dashboard"))
+
+    else:
+        return "Unauthorized", 403
+
+
+
+
 
 @app.route("/logout")
 def logout():
-    session.pop("user", None)
-    return redirect(url_for("login"))
+    session.clear()   # clear flask session
+    sb.auth.sign_out()  # clear supabase session
+    flash("Logged out successfully!", "success")
+    return redirect(url_for("index"))
+
+
 
 # ---------- HELPERS ----------
 def _to_num(x, default=0.0):
@@ -150,8 +418,13 @@ def _to_num(x, default=0.0):
         return default
 
 def get_students():
-    res = sb.table("Students").select("*").order("id").execute()
-    return res.data or []
+    tutor_id = session.get("user_id")   # ✅ yahan None nahi aayega ab
+    if not tutor_id:
+        return []
+    res = sb.table("Students").select("*").eq("tutor_id", tutor_id).order("id").execute()
+    return res.data
+
+
 
 def get_unique_courses():
     rows = sb.table("Students").select("course").not_.is_("course", None).execute().data or []
@@ -162,45 +435,257 @@ def get_unique_courses():
     return sorted({*courses, *base})
 
 # ---------- REGISTRATION → /submit ----------
-@app.route("/register")
-def register():
-    return render_template("register.html")
+# ---------- REGISTRATION → /submit ----------
+# ---------- REGISTRATION → /submit ----------
+@app.route("/register_org_admin", methods=["GET", "POST"])
+def register_org_admin():
+    if request.method == "POST":
+        full_name = request.form["full_name"].strip()
+        email = request.form["email"].strip()
+        password = request.form["password"].strip()
+        org_name = request.form["org_name"].strip()
+
+        try:
+            # Step 1: Create org
+            org_id = str(uuid.uuid4())
+            sb.table("organizations").insert({
+                "id": org_id,
+                "name": org_name
+            }).execute()
+
+            # Step 2: Create user in Supabase Auth
+            signup_resp = sb.auth.sign_up({"email": email, "password": password})
+            print("DEBUG SIGNUP:", signup_resp)
+
+            # Step 3: Force login to ensure user exists in auth.users
+            login_resp = sb.auth.sign_in_with_password({"email": email, "password": password})
+            if not login_resp.user:
+                flash("Auth signup/login failed!", "danger")
+                return redirect(url_for("register_org_admin"))
+
+            auth_user_id = str(login_resp.user.id)
+            print("DEBUG AUTH USER ID:", auth_user_id)
+            print("DEBUG ORG ID:", org_id)
+
+            # Step 4: Insert into profiles
+            insert_resp = sb.table("profiles").insert({
+                "user_id": auth_user_id,    # ✅ guaranteed to exist in auth.users
+                "full_name": full_name,
+                "role": "admin",
+                "is_active": False,         # god_admin will approve later
+                "org_id": org_id,           # ✅ linked to org
+                "email": email
+            }).execute()
+            print("DEBUG PROFILE INSERT:", insert_resp)
+
+            flash("Registration successful! Please wait for approval.", "success")
+            return redirect(url_for("admin_login"))
+
+        except Exception as e:
+            print("❌ Registration error:", e)
+            flash("Registration failed.", "danger")
+            return redirect(url_for("register_org_admin"))
+
+    return render_template("register_org_admin.html")
+
+
+
+@app.route("/register_student", methods=["GET", "POST"])
+def register_student():
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        grade = request.form["grade"].strip()
+        course = request.form["course"].strip()
+        school = request.form["school"].strip()
+        email = request.form["email"].strip()
+        parent_contact = request.form["parent_contact"].strip()
+        mobile = request.form["mobile"].strip()
+        hourly_rate = request.form["hourly_rate"].strip()
+
+        try:
+            sb.table("Students").insert({
+                "name": name,
+                "grade": grade,
+                "course": course,
+                "school": school,
+                "email": email,
+                "parent_contact": parent_contact,
+                "mobile": mobile,
+                "hourly_rate": hourly_rate,
+                "tutor_id": session["user_id"]  # ✅ link student to logged-in tutor
+            }).execute()
+
+            flash("Student registered successfully!", "success")
+            return redirect(url_for("tutor_dashboard"))
+
+        except Exception as e:
+            print("❌ Student registration error:", e)
+            flash("Failed to register student.", "danger")
+            return redirect(url_for("register_student"))
+
+    return render_template("register_student.html")
+
+
+
+@app.route("/register_tutor", methods=["GET", "POST"])
+def register_tutor():
+    if request.method == "POST":
+        full_name = request.form.get("full_name", "").strip()
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "").strip()
+        org_name = request.form.get("organization_name", "").strip()
+
+        try:
+            # Step 1: Handle organization (optional for solo tutors)
+            org_id = None
+            if org_name:  # If organization name is provided
+                org = sb.table("organizations").select("id").eq("name", org_name).execute().data
+                if not org:
+                    flash("Organization not found. Please check the exact name or leave blank for solo tutor.", "danger")
+                    return redirect(url_for("register_tutor"))
+                org_id = org[0]["id"]
+                print("DEBUG: Registering tutor for organization:", org_name, "with ID:", org_id)
+            else:
+                print("DEBUG: Registering solo tutor (no organization)")
+
+            # Step 2: Create user in Supabase Auth
+            resp = sb.auth.sign_up({"email": email, "password": password})
+            print("DEBUG TUTOR SIGNUP:", resp)
+            
+            if not resp.user:
+                flash("Auth signup failed", "danger")
+                return redirect(url_for("register_tutor"))
+
+            auth_user_id = str(resp.user.id)
+            print("DEBUG TUTOR AUTH USER ID:", auth_user_id)
+
+            # Step 3: Force login to ensure user exists (like in register_org_admin)
+            try:
+                login_resp = sb.auth.sign_in_with_password({"email": email, "password": password})
+                if login_resp.user:
+                    auth_user_id = str(login_resp.user.id)
+                    print("DEBUG CONFIRMED AUTH USER ID:", auth_user_id)
+            except Exception as login_error:
+                print("Login after signup failed:", login_error)
+                # Continue with original auth_user_id
+
+            # Step 4: Insert tutor profile
+            profile_data = {
+                "user_id": auth_user_id,
+                "full_name": full_name,
+                "role": "tutor",
+                "is_active": False,   # needs approval (god_admin for solo, org_admin for org tutors)
+                "org_id": org_id,     # NULL for solo tutors, org_id for org tutors
+                "email": email
+            }
+            print("DEBUG TUTOR PROFILE DATA:", profile_data)
+
+            insert_resp = sb.table("profiles").insert(profile_data).execute()
+            print("DEBUG TUTOR PROFILE INSERT:", insert_resp)
+
+            if not insert_resp.data:
+                print("ERROR: Profile insertion returned no data")
+                flash("Tutor profile creation failed - no data returned.", "danger")
+                return redirect(url_for("register_tutor"))
+
+            success_msg = "Solo tutor registered successfully! Please wait for god admin approval." if not org_id else "Organization tutor registered successfully! Please wait for admin approval."
+            flash(success_msg, "success")
+            return redirect(url_for("tutor_login"))
+
+        except Exception as e:
+            print("ERROR: Tutor registration exception:", str(e))
+            print("ERROR TYPE:", type(e).__name__)
+            import traceback
+            print("FULL TRACEBACK:", traceback.format_exc())
+            flash(f"Tutor registration failed: {str(e)}", "danger")
+            return redirect(url_for("register_tutor"))
+
+    return render_template("register_tutor.html")
+
+
+
+# Add this helper route to check what organizations exist
+@app.route("/debug_orgs")
+def debug_orgs():
+    if "user_id" not in session:
+        return "Not authorized", 403
+    
+    try:
+        orgs = sb.table("organizations").select("*").execute()
+        return f"<h3>Available Organizations:</h3><pre>{json.dumps(orgs.data, indent=2)}</pre>"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+# Add this helper route to check auth users
+@app.route("/debug_auth")
+def debug_auth():
+    if "user_id" not in session or session.get("role") != "god_admin":
+        return "Not authorized", 403
+    
+    try:
+        # Note: This might not work depending on your Supabase setup
+        # You may need to use the Supabase admin panel instead
+        return "Check Supabase Auth panel manually"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+
+
+
 
 @app.route("/student/<int:student_id>")
-@login_required
+
 def student_profile(student_id):
-    # fetch student details from Students table
-    student = sb.table("Students").select("*").eq("id", student_id).execute().data
+    
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+    tutor_id = session.get("tutor_id")
+
+    # fetch student details belonging only to this tutor
+    student = (
+        sb.table("Students")
+        .select("*")
+        .eq("id", student_id)
+        .eq("tutor_id", tutor_id)
+        .execute()
+        .data
+    )
+
     if not student:
-        return "Student not found", 404
+        return "Student not found or unauthorized", 404
+
     return render_template("student_profile.html", student=student[0])
+
 
 @app.route("/submit", methods=["POST"])
 def submit():
+    tutor_id = session.get("tutor_id")  # current logged-in tutor
+
     payload = {
         "name": request.form["name"],
         "grade": int(request.form.get("grade") or 0),
         "course": request.form.get("course"),
         "school": request.form.get("school"),
         "email Id": request.form.get("email Id"),
-        "mobile number": request.form.get("mobile number", None), # Use the helper function
+        "mobile number": request.form.get("mobile number"),
         "hourly_rate": _to_num(request.form.get("hourly_rate"), 0.0),
-        "dashboard_token": str(uuid.uuid4())  # ✅ add token
+        "dashboard_token": str(uuid.uuid4()),
+        "tutor_id": tutor_id   # link student to tutor
     }
 
     sb.table("Students").insert(payload).execute()
+    return redirect(url_for("dashboard"))
 
-    return render_template(
-        "dashboard.html",
-        students=get_students(),
-        unique_courses=get_unique_courses()
-    )
 
 
 # ---------- DASHBOARD ----------
 @app.route("/dashboard")
-@login_required
+
 def dashboard():
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
     students = get_students()
     return render_template("dashboard.html", students=students, unique_courses=get_unique_courses())
 
@@ -208,27 +693,55 @@ def dashboard():
 # ... other code ...
 
 @app.route("/edit_student/<int:sid>", methods=["GET", "POST"])
+
 def edit_student(sid):
+    tutor_id = session.get("tutor_id")
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+    
+    tutor_id = session.get("tutor_id")
+
     if request.method == "POST":
         updated = {
             # ... other fields ...
-            "hourly_rate": _to_num(request.form.get("hourly_rate")), # Ensures a number is saved
-            "currency": request.form.get("currency") # Saves the string currency code
+            "hourly_rate": _to_num(request.form.get("hourly_rate")),
+            "currency": request.form.get("currency"),
         }
-        sb.table("Students").update(updated).eq("id", sid).execute()
+
+        # only update if this student belongs to the logged-in tutor
+        sb.table("Students").update(updated).eq("id", sid).eq("tutor_id", tutor_id).execute()
         return redirect(url_for("dashboard"))
 
-    # fetch existing student data
-    student = sb.table("Students").select("*").eq("id", sid).single().execute().data
+    # fetch existing student data scoped to tutor
+    student = (
+        sb.table("Students")
+        .select("*")
+        .eq("id", sid)
+        .eq("tutor_id", tutor_id)
+        .single()
+        .execute()
+        .data
+    )
+
+    if not student:
+        return "Student not found or unauthorized", 404
+
     return render_template("edit.html", student=student)
 
 # ... other code ...
 @app.route("/delete_student/<int:sid>")
-@login_required
+
 def delete_student(sid):
-    # delete directly by id
-    sb.table("Students").delete().eq("id", sid).execute()
+    
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+    tutor_id = session.get("tutor_id")
+
+
+    # delete only if it belongs to this tutor
+    sb.table("Students").delete().eq("id", sid).eq("tutor_id", tutor_id).execute()
     return redirect(url_for("dashboard"))
+
 
 
 # ---------- SCHEDULE ----------
@@ -281,28 +794,54 @@ def _post_to_n8n_sync(url: str, payload: dict):
 
 
 @app.route("/schedule", methods=["GET", "POST"])
-@login_required
-def schedule():
-    # 1) Load existing schedule rows
-    sched = sb.table("class_schedule").select("*").order("id").execute().data or []
 
-    # 2) Fast list of student names for the dropdown
-    name_rows = sb.table("Students").select("name").order("name").execute().data or []
+def schedule():
+    
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+    tutor_id = session.get("tutor_id")
+
+
+    # 1) Load existing schedule rows for this tutor only
+    sched = (
+        sb.table("class_schedule")
+        .select("*")
+        .eq("tutor_id", tutor_id)
+        .order("id")
+        .execute()
+        .data or []
+    )
+
+    # 2) Fast list of student names for this tutor only
+    name_rows = (
+        sb.table("Students")
+        .select("name")
+        .eq("tutor_id", tutor_id)
+        .order("name")
+        .execute()
+        .data or []
+    )
     student_names = [r["name"] for r in name_rows]
 
-    # 3) Map name -> email Id  (note the exact column: "email Id")
-    stu_rows = sb.table("Students").select('name, "email Id"').execute().data or []
+    # 3) Map name -> email (scoped to this tutor’s students)
+    stu_rows = (
+        sb.table("Students")
+        .select('name, "email Id"')
+        .eq("tutor_id", tutor_id)
+        .execute()
+        .data or []
+    )
     emails = {r["name"]: (r.get("email Id") or "") for r in stu_rows}
 
     if request.method == "POST":
         name   = request.form["student"]
         course = request.form.get("course")
-        d      = request.form.get("date")        # "YYYY-MM-DD"
-        start  = request.form.get("time")        # "HH:MM"
-        end_t  = request.form.get("end_time")    # "HH:MM"
+        d      = request.form.get("date")
+        start  = request.form.get("time")
+        end_t  = request.form.get("end_time")
         dur    = _to_num(request.form.get("duration"))
 
-        # 4) Insert into Supabase and get the created row (with id)
+        # 4) Insert into Supabase with tutor_id
         insert_payload = {
             "name": name,
             "course": course,
@@ -310,16 +849,17 @@ def schedule():
             "start_time": start,
             "end_time": end_t,
             "duration": dur,
-            "email Id": emails.get(name, "")
+            "email Id": emails.get(name, ""),
+            "tutor_id": tutor_id
         }
         res = sb.table("class_schedule").insert(insert_payload).execute()
         created = (res.data or [{}])[0]
 
-        # 5) Kick off n8n in the background (non-blocking)
+        # 5) Trigger n8n in background
         payload = {
             "event": "class_scheduled",
             "source": "likhil_lms",
-            "row": created   # includes schedule id; n8n will create GCal & update meet_url there
+            "row": created
         }
         threading.Thread(target=_post_to_n8n_async, args=(payload,), daemon=True).start()
 
@@ -333,24 +873,37 @@ def schedule():
         custom_courses=custom_courses
     )
 
+
 # keep delete route shape; use list order to resolve id
 @app.route("/schedule/delete/<int:row_index>", methods=["POST"])
-@login_required
+
 def delete_schedule(row_index):
-    print(f"\n🗑️ DELETE SCHEDULE CALLED - Row Index: {row_index}")
     
-    # Load rows in the same order the table shows
-    rows = sb.table("class_schedule").select("*").order("id").execute().data or []
-    print(f"📊 Total schedule rows: {len(rows)}")
-    
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+    tutor_id = session.get("tutor_id")
+
+    print(f"\n🗑️ DELETE SCHEDULE CALLED - Row Index: {row_index} | Tutor: {tutor_id}")
+
+    # Load schedules only for this tutor
+    rows = (
+        sb.table("class_schedule")
+        .select("*")
+        .eq("tutor_id", tutor_id)
+        .order("id")
+        .execute()
+        .data or []
+    )
+    print(f"📊 Total schedule rows for this tutor: {len(rows)}")
+
     if row_index < 0 or row_index >= len(rows):
         print(f"❌ Invalid row index: {row_index}")
         return "Not found", 404
 
     row = rows[row_index]
     schedule_id = row.get("id")
-    event_id = row.get("google_event_id", "")  
-    
+    event_id = row.get("google_event_id", "")
+
     print(f"🎯 Deleting schedule:")
     print(f"   Schedule ID: {schedule_id}")
     print(f"   Google Event ID: {event_id}")
@@ -369,13 +922,13 @@ def delete_schedule(row_index):
             "start_time": row.get("start_time")
         }
     }
-    
+
     print(f"🎯 N8N_DELETE_URL: {N8N_DELETE_URL}")
     _post_to_n8n_sync(N8N_DELETE_URL, payload)
 
-    # 2) Delete the row from Supabase
+    # 2) Delete from Supabase (scoped by tutor_id for safety)
     print(f"🗄️ Deleting from Supabase...")
-    sb.table("class_schedule").delete().eq("id", schedule_id).execute()
+    sb.table("class_schedule").delete().eq("id", schedule_id).eq("tutor_id", tutor_id).execute()
     print(f"✅ Deleted from Supabase")
 
     return redirect(url_for("schedule"))
@@ -408,35 +961,43 @@ def _fire_and_forget(url: str, payload: dict):
         app.logger.warning(f"n8n delete webhook failed: {e}")
 # FINISH = move row to attendance then delete from schedule
 @app.route("/schedule/finish/<int:index>")
-@login_required
+
 def finish_schedule(index):
+    
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+    tutor_id = session.get("tutor_id")
+
     print(f"\n🏁 FINISH SCHEDULE CALLED - Index: {index}")
-    
-    # 1) Load list (ordered by id so index matches your UI)
-    sched = sb.table("class_schedule").select("*").order("id").execute().data or []
+
+    # Load tutor’s own schedules
+    sched = (
+        sb.table("class_schedule")
+        .select("*")
+        .eq("tutor_id", tutor_id)
+        .order("id")
+        .execute()
+        .data or []
+    )
     if index < 0 or index >= len(sched):
-        print(f"❌ Invalid index: {index}")
         return "Not found", 404
+
     row = sched[index]
+    print(f"🎯 Finishing schedule: {row.get('id')} for tutor {tutor_id}")
 
-    print(f"🎯 Finishing schedule:")
-    print(f"   Schedule ID: {row.get('id')}")
-    print(f"   Google Event ID: {row.get('google_event_id')}")
-    print(f"   Student: {row.get('name')}")
-
-    # 2) Write to attendance
+    # Write to attendance (with tutor_id)
     sb.table("attendance").insert({
-        "name":     row.get("name"),
-        "course":   row.get("course"),
-        "date":     row.get("date"),
-        "time":     row.get("start_time"),
-        "duration": _to_num(row.get("duration")),
-    }).execute()
+    "name": row.get("name"),
+    "course": row.get("course"),
+    "date": row.get("date"),
+    "time": row.get("start_time"),
+    "duration": _to_num(row.get("duration")),
+    "tutor_id": tutor_id
+}).execute()
 
-    # 3) Ask n8n to delete the Google Calendar event
+
+    # Tell n8n to delete Google Calendar event
     geid = (row.get("google_event_id") or "").strip()
-    print(f"🎯 Google Event ID for deletion: '{geid}'")
-    
     if geid:
         payload = {
             "event": "class_finished",
@@ -450,18 +1011,30 @@ def finish_schedule(index):
             }
         }
         _fire_and_forget(N8N_DELETE_URL, payload)
-    else:
-        print("⚠️ No Google Event ID found - skipping n8n deletion")
 
-    # 4) Delete the schedule row itself
-    sb.table("class_schedule").delete().eq("id", row["id"]).execute()
+    # Delete schedule row itself
+    sb.table("class_schedule").delete().eq("id", row["id"]).eq("tutor_id", tutor_id).execute()
 
     return redirect(url_for("schedule"))
+
 # ---------- ATTENDANCE (month filter kept) ----------
 @app.route("/attendance")
-@login_required
+
 def attendance():
-    rows = sb.table("attendance").select("*").order("date", desc=True).execute().data or []
+    
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+    tutor_id = session.get("tutor_id")
+
+    # Fetch only this tutor's attendance records
+    rows = (
+        sb.table("attendance")
+        .select("*")
+        .eq("tutor_id", tutor_id)
+        .order("date", desc=True)
+        .execute()
+        .data or []
+    )
 
     start_date = request.args.get("start")
     end_date = request.args.get("end")
@@ -477,10 +1050,18 @@ def attendance():
 
     return render_template("attendance.html", records=filtered)
 
+
 # ---------- PAYMENTS ----------
-@app.route("/payment_records", methods=["GET","POST"])
-@login_required
+@app.route("/payment_records", methods=["GET", "POST"])
 def payment_records():
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+
+    tutor_id = session.get("tutor_id")
+    if not tutor_id:
+        flash("Session expired. Please login again.", "danger")
+        return redirect(url_for("tutor_login"))
+
     if request.method == "POST":
         sb.table("payment_records").insert({
             "name": request.form["name"],
@@ -489,37 +1070,54 @@ def payment_records():
             "cleared_date": request.form.get("cleared_date"),
             "advance_hours": _to_num(request.form.get("advance_hours")),
             "advance_amount": _to_num(request.form.get("advance_amount")),
+            "tutor_id": tutor_id
         }).execute()
         return redirect(url_for("payment_records"))
 
-    records = sb.table("payment_records").select("*").order("cleared_date", desc=True).execute().data or []
-    students = [s["name"] for s in get_students()]
-    courses  = get_unique_courses()
+    # Fetch only this tutor's payment records
+    records = (
+        sb.table("payment_records")
+        .select("*")
+        .eq("tutor_id", tutor_id)
+        .order("cleared_date", desc=True)
+        .execute()
+        .data or []
+    )
+
+    students = [s["name"] for s in get_students()]  # already scoped to tutor
+    courses = get_unique_courses()
+
     return render_template("payment_records.html", records=records, students=students, courses=courses)
+
 
 # dues since last cleared date minus advance hours
 @app.route("/payment_status", methods=["GET","POST"])
-@login_required
+
 def payment_status():
-    # ✅ Get all student names for dropdown
+    
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+
+    tutor_id = session.get("tutor_id")
+    # Only this tutor's students
     students = sorted([s["name"] for s in get_students()])
     status, class_details = None, []
 
-    # 📝 New: Currency mapping
-    CURRENCY_SYMBOLS = {
-        "INR": "₹",
-        "USD": "$",
-        "EUR": "€",
-        "GBP": "£"
-    }
-    
-    currency_symbol = "₹" # default symbol
+    CURRENCY_SYMBOLS = {"INR": "₹","USD": "$","EUR": "€","GBP": "£"}
+    currency_symbol = "₹"  # default
 
     if request.method == "POST":
         selected = request.form.get("student")
 
-        # ✅ Fetch Hourly Rate and Currency directly from Students table
-        student_data = sb.table("Students").select("hourly_rate, currency").eq("name", selected).execute().data
+        # Fetch student data (scoped by tutor)
+        student_data = (
+            sb.table("Students")
+            .select("hourly_rate, currency")
+            .eq("name", selected)
+            .eq("tutor_id", tutor_id)
+            .execute()
+            .data
+        )
         if not student_data:
             flash("No hourly rate found for this student. Please update their record.", "warning")
             return render_template("payment_status.html", students=students, status=None, classes=[], currency_symbol=currency_symbol)
@@ -528,9 +1126,16 @@ def payment_status():
         currency_code = student_data[0].get("currency", "INR")
         currency_symbol = CURRENCY_SYMBOLS.get(currency_code, "₹")
 
-        # ✅ Fetch payment records
-        pays = sb.table("payment_records").select("*").eq("name", selected)\
-               .order("cleared_date").execute().data or []
+        # Payment records (scoped by tutor)
+        pays = (
+            sb.table("payment_records")
+            .select("*")
+            .eq("name", selected)
+            .eq("tutor_id", tutor_id)
+            .order("cleared_date")
+            .execute()
+            .data or []
+        )
 
         cleared_date = datetime(1970,1,1).date()
         adv_hrs, adv_amount = 0.0, 0.0
@@ -540,9 +1145,17 @@ def payment_status():
             adv_hrs = _to_num(last.get("advance_hours"))
             adv_amount = _to_num(last.get("advance_amount"))
 
-        # ✅ Attendance after cleared date
-        att = sb.table("attendance").select("*").eq("name", selected)\
-              .gte("date", str(cleared_date)).order("date").execute().data or []
+        # Attendance after cleared date (scoped by tutor)
+        att = (
+            sb.table("attendance")
+            .select("*")
+            .eq("name", selected)
+            .eq("tutor_id", tutor_id)
+            .gte("date", str(cleared_date))
+            .order("date")
+            .execute()
+            .data or []
+        )
 
         total_since = 0.0
         for a in att:
@@ -564,7 +1177,6 @@ def payment_status():
             "total_since": total_since,
             "pending_hrs": pending_hrs,
             "rate": rate,
-            # ✅ Proper pending amount calculation
             "pending_amount": round(pending_hrs * rate, 2),
         }
 
@@ -573,9 +1185,13 @@ def payment_status():
 
 # ---------- RESCHEDULE (same route shape) ----------
 @app.route("/schedule/reschedule/<int:row_index>", methods=["GET","POST"])
-@login_required
+
 def reschedule(row_index):
-    rows = sb.table("class_schedule").select("*").order("id").execute().data or []
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+
+    rows = sb.table("class_schedule").select("*").eq("tutor_id", session.get("tutor_id")).order("id").execute().data or []
+
     if row_index < 0 or row_index >= len(rows):
         return "Not found", 404
     row = rows[row_index]
@@ -598,14 +1214,20 @@ def reschedule(row_index):
 
 # ---------- STUDENT REPORT (reads from Supabase; keeps your template contract) ----------
 # You can plug your HuggingFace function here if you want to keep AI reports.
-def generate_huggingface_report(student_name, **kwargs):
-    # keep your existing implementation if needed; here return a safe stub
-    return f"<h1 class='fs-3 fw-bold'>Performance Report for {student_name}</h1><p class='mb-3'>Report content…</p>"
+# ---------- STUDENT REPORT (reads from Supabase; keeps your template contract) ----------
+# You can plug your HuggingFace function here if you want to keep AI reports.
+# You can plug your HuggingFace function here to generate AI reports.
 
 @app.route("/student_report", methods=["GET","POST"])
-@login_required
+
 def student_report():
-    all_students = get_students()
+    
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+    tutor_id = session.get("tutor_id")
+
+    # only this tutor's students
+    all_students = get_students()  
     student_names = sorted({s["name"] for s in all_students})
 
     vals = request.values
@@ -616,10 +1238,12 @@ def student_report():
     att_start = vals.get("att_start")
     att_end   = vals.get("att_end")
 
-    # payments
-    q = sb.table("payment_records").select("*")
-    if selected_student: q = q.eq("name", selected_student)
+    # payments (scoped by tutor)
+    q = sb.table("payment_records").select("*").eq("tutor_id", tutor_id)
+    if selected_student: 
+        q = q.eq("name", selected_student)
     pays = q.execute().data or []
+
     dfp = pd.DataFrame(pays)
     if not dfp.empty and "cleared_date" in dfp:
         dfp["cleared_date"] = pd.to_datetime(dfp["cleared_date"], errors="coerce")
@@ -628,10 +1252,12 @@ def student_report():
     payment_records = dfp.to_dict("records") if not dfp.empty else []
     total_paid = float(dfp["amount"].sum()) if not dfp.empty and "amount" in dfp else 0.0
 
-    # attendance
-    qa = sb.table("attendance").select("*")
-    if selected_student: qa = qa.eq("name", selected_student)
+    # attendance (scoped by tutor)
+    qa = sb.table("attendance").select("*").eq("tutor_id", tutor_id)
+    if selected_student: 
+        qa = qa.eq("name", selected_student)
     att = qa.execute().data or []
+
     dfa = pd.DataFrame(att)
     attendance_records, attendance_count, attendance_total_hours = [], 0, 0.0
     if not dfa.empty and "date" in dfa:
@@ -645,25 +1271,10 @@ def student_report():
         attendance_total_hours = float(dfa["Duration"].sum())
 
     # AI report (optional)
-    report_data = {
-        "student_name": selected_student,
-        "discipline": request.form.get("discipline"),
-        "punctuality": request.form.get("punctuality"),
-        "participation": request.form.get("participation"),
-        "missed_classes": request.form.get("missed_classes", "0"),
-        "absence_reason": request.form.get("absence_reason"),
-        "homework_submission": request.form.get("homework_submission"),
-        "missed_work_status": request.form.get("missed_work_status"),
-        "behavior_comments": request.form.getlist("positive_traits"),
-        "comments": request.form.getlist("needs_attention"),
-        "free_text": request.form.get("free_text"),
-        "start_date": request.form.get("start_date"),
-        "end_date": request.form.get("end_date")
-    }
-    if "student_name" in report_data:
-        del report_data["student_name"]
-    report_html = generate_huggingface_report(selected_student, **report_data) if selected_student else ""
-    report = Markup(report_html)
+    report_html = ""
+    if selected_student and request.method == "POST":
+        raw_markdown = generate_openai_report(selected_student, attendance_records, att_start, att_end, **request.form)
+        report_html = markdown.markdown(raw_markdown)
 
     return render_template(
         "student_report.html",
@@ -675,42 +1286,134 @@ def student_report():
         attendance_records=attendance_records,
         attendance_count=attendance_count,
         attendance_total_hours=attendance_total_hours,
-        report=report
+        report=Markup(report_html)
     )
 
+
+def generate_openai_report(student_name, attendance_records, start_date, end_date, **kwargs):
+    # Retrieve the API key from environment variables
+    OPENAI_API_KEY = os.getenv("OPEN_API_KEY", "")
+    if not OPENAI_API_KEY:
+        return "<p class='text-danger'>AI report generation failed: OpenAI API key not found.</p>"
+
+    # Calculate attendance statistics
+    total_classes = len(attendance_records)
+    total_hours = sum(record.get('Duration', 0) for record in attendance_records) if attendance_records else 0
+    avg_duration = total_hours / total_classes if total_classes > 0 else 0
+    courses = list(set(record.get('Course', 'N/A') for record in attendance_records)) if attendance_records else []
+    courses_str = ", ".join(courses) if courses else "No courses"
+
+    # Build a comprehensive prompt
+    prompt = f"""
+Generate a detailed student performance report for {student_name} covering the period from {start_date} to {end_date}.
+
+ATTENDANCE DATA:
+- Total classes attended: {total_classes}
+- Total hours: {total_hours:.1f} hours
+- Average class duration: {avg_duration:.1f} hours
+- Courses: {courses_str}
+
+PERFORMANCE METRICS:
+- Class Participation: {kwargs.get('participation', 'Not specified')}
+- Effort & Consistency: {kwargs.get('effort', 'Not specified')}
+- Progress Trend: {kwargs.get('progress', 'Not specified')}
+- Homework Punctuality: {kwargs.get('punctuality', 'Not specified')}
+- Homework Submission: {kwargs.get('homework_submission', 'Not specified')}
+
+TEACHER OBSERVATIONS:
+- Positive traits: {', '.join(kwargs.get('positive_traits', [])) if kwargs.get('positive_traits') else 'Not specified'}
+- Areas needing attention: {', '.join(kwargs.get('needs_attention', [])) if kwargs.get('needs_attention') else 'Not specified'}
+- Additional notes: {kwargs.get('free_text', 'No additional notes')}
+
+Please create a professional, encouraging report in markdown format. Start with a title that includes the date range like:
+"## {student_name}'s Performance Report ({start_date} to {end_date})"
+
+Then use these headings with ####:
+#### Overall Performance Summary
+#### Class Attendance & Participation  
+#### Academic Progress & Effort
+#### Homework & Assignment Performance
+#### Areas of Strength
+#### Areas for Improvement
+#### Teacher Recommendations
+
+Use ## for the main title and #### for all section headings. Keep the tone professional but encouraging. Focus on specific insights rather than generic statements.
+"""
+
+    # OpenAI API call
+    try:
+        API_URL = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {OPENAI_API_KEY}"
+        }
+
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 800,
+            "temperature": 0.7
+        }
+
+        response = requests.post(API_URL, headers=headers, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            generated_text = result['choices'][0]['message']['content']
+            return generated_text
+        else:
+            print(f"OpenAI API Error: {response.text}")
+            return f"<p class='text-danger'>AI report generation failed. Status code: {response.status_code}. Error: {response.text}</p>"
+
+    except Exception as e:
+        print(f"OpenAI API call failed: {e}")
+        return f"<p class='text-danger'>AI report generation failed due to an exception: {e}</p>"
 @app.route("/attendance/edit/<record_id>", methods=["GET", "POST"])
-@login_required
+
 def edit_attendance(record_id):
-    # Fetch record by ID
-    record = sb.table("attendance").select("*").eq("id", record_id).execute().data
+    
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+
+    tutor_id = session.get("tutor_id")
+    # fetch only tutor's record
+    record = (
+        sb.table("attendance")
+        .select("*")
+        .eq("id", record_id)
+        .eq("tutor_id", tutor_id)
+        .execute()
+        .data
+    )
     if not record:
         return redirect(url_for("attendance"))
 
     if request.method == "POST":
-        name = request.form.get("name")
-        course = request.form.get("course")
-        date = request.form.get("date")
-        time = request.form.get("time")
-        duration = request.form.get("duration")
-
         sb.table("attendance").update({
-            "name": name,
-            "course": course,
-            "date": date,
-            "time": time,
-            "duration": duration
-        }).eq("id", record_id).execute()
-
+            "name": request.form.get("name"),
+            "course": request.form.get("course"),
+            "date": request.form.get("date"),
+            "time": request.form.get("time"),
+            "duration": request.form.get("duration")
+        }).eq("id", record_id).eq("tutor_id", tutor_id).execute()
         return redirect(url_for("attendance"))
 
     return render_template("edit_attendance.html", record=record[0])
 
 
 @app.route("/attendance/delete/<record_id>")
-@login_required
+
 def delete_attendance(record_id):
-    sb.table("attendance").delete().eq("id", record_id).execute()
+    
+    if "user_id" not in session or session.get("role") != "tutor":
+        return redirect(url_for("tutor_login"))
+    tutor_id = session.get("tutor_id")
+
+    sb.table("attendance").delete().eq("id", record_id).eq("tutor_id", tutor_id).execute()
     return redirect(url_for("attendance"))
+
 
 # ---------- Student Dashboard Route ----------
 
