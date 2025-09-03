@@ -1177,7 +1177,7 @@ def payment_status():
             "total_since": total_since,
             "pending_hrs": pending_hrs,
             "rate": rate,
-            "pending_amount": round(pending_hrs * rate, 2),
+            "pending_amount": round(pending_hrs * rate-adv_amount-advance_hrs*rate, 2),
         }
 
     return render_template("payment_status.html",
