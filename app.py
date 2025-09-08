@@ -39,7 +39,7 @@ N8N_DELETE_URL = os.getenv("N8N_DELETE_URL", "")
 from functools import wraps
 from flask import session, redirect, url_for
 
-
+print(N8N_CREATE_URL)
 
 
 
@@ -837,6 +837,7 @@ def schedule():
         name   = request.form["student"]
         course = request.form.get("course")
         d      = request.form.get("date")
+        end_d  = request.form.get("end_date")
         start  = request.form.get("time")
         end_t  = request.form.get("end_time")
         dur    = _to_num(request.form.get("duration"))
@@ -846,6 +847,7 @@ def schedule():
             "name": name,
             "course": course,
             "date": d,
+            "end_date": end_d,
             "start_time": start,
             "end_time": end_t,
             "duration": dur,
@@ -990,6 +992,7 @@ def finish_schedule(index):
     "name": row.get("name"),
     "course": row.get("course"),
     "date": row.get("date"),
+    "end_date": row.get("end_date"),
     "time": row.get("start_time"),
     "duration": _to_num(row.get("duration")),
     "tutor_id": tutor_id

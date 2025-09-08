@@ -38,6 +38,12 @@
             <label class="form-label">Date</label>
             <input type="date" name="date" class="form-control shadow-sm" required />
           </div>
+          <div class="col-md-4">
+            <label class="form-label">End Date</label>
+            <input type="date" name="end_date" class="form-control shadow-sm"
+            value="{{ request.form.get('end_date','') }}" required />
+          </div>
+
 
           <!-- Start time -->
           <div class="col-md-4">
@@ -84,6 +90,7 @@
                 <th>Student</th>
                 <th>Course</th>
                 <th>Date</th>
+                <th>End Date</th> 
                 <th>Start Time</th>
                 <th>End Time</th>
                 <th>Duration</th>
@@ -96,6 +103,8 @@
                 {% set student = row.get('name') or row.get('Student') %}
                 {% set course  = row.get('course') or row.get('Course') %}
                 {% set date    = row.get('date') or row.get('Date') %}
+                {% set end_date = row.get('end_date') or row.get('End Date') %}
+                
                 {% set start_t = row.get('start_time') or row.get('Time') %}
                 {% set end_t   = row.get('end_time') or row.get('End Time') %}
                 {% set dur     = row.get('duration') or row.get('Duration') %}
@@ -103,6 +112,7 @@
                   <td>{{ student }}</td>
                   <td>{{ course }}</td>
                   <td>{{ date }}</td>
+                  <td>{{end_date }}</td>
                   <td>{{ start_t }}</td>
                   <td>{{ end_t }}</td>
                   <td>{{ dur }}</td>
