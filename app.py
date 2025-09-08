@@ -992,7 +992,7 @@ def finish_schedule(index):
     "name": row.get("name"),
     "course": row.get("course"),
     "date": row.get("date"),
-    "end_date": row.get("end_date"),
+   
     "time": row.get("start_time"),
     "duration": _to_num(row.get("duration")),
     "tutor_id": tutor_id
