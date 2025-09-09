@@ -1,32 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Payment Records</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
-  <style>
-    body { background:#f4f6fc; font-family:"Segoe UI",Tahoma,sans-serif; }
-    .card { border-radius:15px; box-shadow:0 4px 12px rgba(0,0,0,0.15); margin-bottom:2rem; }
-    .header-bar { background:#3f51b5; color:white; padding:1rem; border-radius:15px 15px 0 0; }
-    .btn-primary { background:#3f51b5; border:none; }
-    .btn-primary:hover { background:#303f9f; }
-    .btn-success { background:#388e3c; border:none; } /* agar kahin aur use ho to */
-    .btn-danger { background:#d32f2f; border:none; }
-    .btn-theme {
-      background:#3f51b5; 
-      border:none; 
-      color:white;
-    }
-    .btn-theme:hover {
-      background:#303f9f;
-      color:white;
-    }
-    .table thead th { background:#3f51b5; color:white; }
-  </style>
-</head>
-<body>
-<div class="container mt-4">
+{% extends "layout.html" %}
+{% block title %}Payment Records | Likhil Education LMS{% endblock %}
+
+{% block content %}
+<div class="container py-3">
 
   <h2 class="mb-4"><i class="fa-solid fa-file-invoice-dollar me-2"></i> Payment Records</h2>
 
@@ -85,11 +61,12 @@
               <label class="form-label">Adv Amt</label>
               <input type="number" step="0.01" name="advance_amount" class="form-control"/>
             </div>
-            <div class="col-12">
-              <button type="submit" class="btn btn-theme">
-                <i class="fa-solid fa-plus"></i> Add Payment
+            <div class="col-md-12">
+              <button type="submit" class="btn text-white" style="background-color:#5a55ae;">
+                + Add Payment
               </button>
             </div>
+
           </form>
 
           <!-- Table of payment records -->
@@ -163,8 +140,7 @@
 
   </div>
 </div>
-
+{% endblock %}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
