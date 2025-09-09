@@ -62,65 +62,101 @@ def fix_tokens():
 
 @app.route("/student_dashboard/<token>")
 def student_dashboard(token):
-    # fetch student by token
-    student = sb.table("Students").select("*").eq("dashboard_token", token).eq("tutor_id", session.get("tutor_id")).execute().data
+    # Fetch student by token (no session dependency here)
+    student = sb.table("Students").select("*").eq("dashboard_token", token).execute().data
 
     if not student:
         abort(404)
 
     student = student[0]
-    selected = student["name"] # get student's name
+    selected = student["name"]
 
-    attendance = sb.table("attendance").select("*").eq("name", selected).execute().data
-    payments = sb.table("payment_records").select("*").eq("name", selected).execute().data
-    
-    # 📝 FIX: Select the 'meet_link' column from the 'class_schedule' table
-    schedule = sb.table("class_schedule").select("date, start_time, end_time, course, meet_url").eq("name", selected).execute().data
-    
-    # ✅ NEW: Calculate pending fee status right in the route
+    # Attendance
+    attendance = (
+        sb.table("attendance")
+        .select("*")
+        .eq("name", selected)
+        .eq("tutor_id", student["tutor_id"])   # ✅ secure by tutor_id from DB itself
+        .execute()
+        .data
+    )
+
+    # Payments
+    payments = (
+        sb.table("payment_records")
+        .select("*")
+        .eq("name", selected)
+        .eq("tutor_id", student["tutor_id"])
+        .execute()
+        .data
+    )
+
+    # Schedule (include meet link)
+    schedule = (
+        sb.table("class_schedule")
+        .select("date, start_time, end_time, course, meet_url")
+        .eq("name", selected)
+        .eq("tutor_id", student["tutor_id"])
+        .execute()
+        .data
+    )
+
+    # Pending Fee Calculation
     status, class_details = None, []
-    
-    student_data = sb.table("Students").select("hourly_rate").eq("name", selected).execute().data
-    if student_data:
-        rate = _to_num(student_data[0].get("hourly_rate", 0))
+    rate = _to_num(student.get("hourly_rate", 0))
 
-        pays = sb.table("payment_records").select("*").eq("name", selected)\
-               .order("cleared_date").execute().data or []
-        
-        cleared_date = datetime(1970,1,1).date()
-        adv_hrs, adv_amount = 0.0, 0.0
-        if pays:
-            last = pays[-1]
-            cleared_date = pd.to_datetime(last["cleared_date"]).date()
-            adv_hrs = _to_num(last.get("advance_hours"))
-            adv_amount = _to_num(last.get("advance_amount"))
+    pays = (
+        sb.table("payment_records")
+        .select("*")
+        .eq("name", selected)
+        .eq("tutor_id", student["tutor_id"])
+        .order("cleared_date")
+        .execute()
+        .data or []
+    )
 
-        att = sb.table("attendance").select("*").eq("name", selected)\
-              .gte("date", str(cleared_date)).order("date").execute().data or []
+    cleared_date = datetime(1970, 1, 1).date()
+    adv_hrs, adv_amount = 0.0, 0.0
+    if pays:
+        last = pays[-1]
+        cleared_date = pd.to_datetime(last["cleared_date"]).date()
+        adv_hrs = _to_num(last.get("advance_hours"))
+        adv_amount = _to_num(last.get("advance_amount"))
 
-        total_since = 0.0
-        for a in att:
-            d = pd.to_datetime(a["date"]).date()
-            if d > cleared_date:
-                total_since += _to_num(a.get("duration"))
-                class_details.append({
-                    "Date": a["date"],
-                    "Course": a.get("course",""),
-                    "Time": a.get("time",""),
-                    "Duration": _to_num(a.get("duration"))
-                })
-        
-        pending_hrs = max(total_since - adv_hrs, 0.0)
-        
-        status = {
-            "student": selected,
-            "cleared_date": str(cleared_date),
-            "advance_hrs": adv_hrs,
-            "total_since": total_since,
-            "pending_hrs": pending_hrs,
-            "rate": rate,
-            "pending_amount": round(pending_hrs * rate, 2),
-        }
+    att = (
+        sb.table("attendance")
+        .select("*")
+        .eq("name", selected)
+        .eq("tutor_id", student["tutor_id"])
+        .gte("date", str(cleared_date))
+        .order("date")
+        .execute()
+        .data or []
+    )
+
+    total_since = 0.0
+    for a in att:
+        d = pd.to_datetime(a["date"]).date()
+        if d > cleared_date:
+            total_since += _to_num(a.get("duration"))
+            class_details.append({
+                "Date": a["date"],
+                "Course": a.get("course", ""),
+                "Time": a.get("time", ""),
+                "Duration": _to_num(a.get("duration"))
+            })
+
+    pending_hrs = max(total_since - adv_hrs, 0.0)
+
+    status = {
+        "student": selected,
+        "cleared_date": str(cleared_date),
+        "advance_hrs": adv_hrs,
+        "total_since": total_since,
+        "pending_hrs": pending_hrs,
+        "rate": rate,
+        "pending_amount": round(pending_hrs * rate - adv_amount, 2),
+    }
 
     return render_template(
         "student_dashboard.html",
@@ -129,7 +165,7 @@ def student_dashboard(token):
         payments=payments,
         schedule=schedule,
         pending_status=status,
-        pending_classes=class_details
+        pending_classes=class_details,
     )
 
 @app.route("/admin_dashboard")
