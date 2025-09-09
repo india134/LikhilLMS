@@ -1,95 +1,170 @@
-{% extends "layout.html" %}
-{% block title %}Payment Records – Likhil Education LMS{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Payment Records</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
+  <style>
+    body { background:#f4f6fc; font-family:"Segoe UI",Tahoma,sans-serif; }
+    .card { border-radius:15px; box-shadow:0 4px 12px rgba(0,0,0,0.15); margin-bottom:2rem; }
+    .header-bar { background:#3f51b5; color:white; padding:1rem; border-radius:15px 15px 0 0; }
+    .btn-primary { background:#3f51b5; border:none; }
+    .btn-primary:hover { background:#303f9f; }
+    .btn-success { background:#388e3c; border:none; } /* agar kahin aur use ho to */
+    .btn-danger { background:#d32f2f; border:none; }
+    .btn-theme {
+      background:#3f51b5; 
+      border:none; 
+      color:white;
+    }
+    .btn-theme:hover {
+      background:#303f9f;
+      color:white;
+    }
+    .table thead th { background:#3f51b5; color:white; }
+  </style>
+</head>
+<body>
+<div class="container mt-4">
 
-{% block content %}
-  <div class="container py-3">
-    <h2 class="mb-4"><i class="fa-solid fa-file-invoice-dollar me-2"></i> Payment Records</h2>
+  <h2 class="mb-4"><i class="fa-solid fa-file-invoice-dollar me-2"></i> Payment Records</h2>
 
-    <!-- Create / Log Payment -->
-    <div class="card shadow-sm border-0 rounded-3 mb-4">
-      <div class="card-header text-white" style="background: linear-gradient(90deg,#3f51b5,#5a55ae);">
-        <i class="fa-solid fa-plus-circle me-1"></i> Log a New Payment
-      </div>
-      <div class="card-body">
-        <form method="POST" class="row g-3">
-          <div class="col-md-4">
-            <label class="form-label">Student</label>
-            <select name="name" class="form-select shadow-sm" required>
-              {% for s in students %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
-            </select>
+  <!-- Tabs -->
+  <ul class="nav nav-tabs" id="paymentTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button">All Payments</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button">Pending Dues</button>
+    </li>
+  </ul>
+
+  <div class="tab-content mt-3">
+
+    <!-- All Payments Tab -->
+    <div class="tab-pane fade show active" id="all" role="tabpanel">
+      <div class="card">
+        <div class="header-bar">
+          <h4><i class="fa-solid fa-list"></i> All Payment Records</h4>
+        </div>
+        <div class="card-body">
+          <!-- Form to add a new payment -->
+          <form method="POST" class="row g-3 mb-4">
+            <div class="col-md-3">
+              <label class="form-label">Student</label>
+              <select name="name" class="form-select" required>
+                <option value="">Select student</option>
+                {% for s in students %}
+                  <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Course</label>
+              <select name="course" class="form-select">
+                <option value="">Select course</option>
+                {% for c in courses %}
+                  <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Amount</label>
+              <input type="number" step="0.01" name="amount" class="form-control" required/>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Cleared Date</label>
+              <input type="date" name="cleared_date" class="form-control" required/>
+            </div>
+            <div class="col-md-1">
+              <label class="form-label">Adv Hrs</label>
+              <input type="number" step="0.01" name="advance_hours" class="form-control"/>
+            </div>
+            <div class="col-md-1">
+              <label class="form-label">Adv Amt</label>
+              <input type="number" step="0.01" name="advance_amount" class="form-control"/>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-theme">
+                <i class="fa-solid fa-plus"></i> Add Payment
+              </button>
+            </div>
+          </form>
+
+          <!-- Table of payment records -->
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Course</th>
+                  <th>Amount</th>
+                  <th>Cleared Date</th>
+                  <th>Advance Hours</th>
+                  <th>Advance Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in records %}
+                <tr>
+                  <td>{{ r.name }}</td>
+                  <td>{{ r.course or "" }}</td>
+                  <td>{{ r.amount }}</td>
+                  <td>{{ r.cleared_date }}</td>
+                  <td>{{ r.advance_hours or 0 }}</td>
+                  <td>{{ r.advance_amount or 0 }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="6" class="text-muted">No payment records yet.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
 
-          <div class="col-md-4">
-            <label class="form-label">Course</label>
-            <select name="course" class="form-select shadow-sm" required>
-              {% for c in courses %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
-            </select>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">Amount Paid</label>
-            <input type="number" name="amount" step="0.01" min="0" class="form-control shadow-sm" placeholder="0.00" required />
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">Cleared up to (Date)</label>
-            <input type="date" name="cleared_date" class="form-control shadow-sm" required />
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">Advance Paid (Hours)</label>
-            <input type="number" name="advance_hours" step="0.1" min="0" class="form-control shadow-sm" value="0" />
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">Advance Paid Amount</label>
-            <input type="number" name="advance_amount" step="0.1" min="0" class="form-control shadow-sm" value="0" />
-          </div>
-
-          <div class="col-12">
-            <button type="submit" class="btn btn-primary shadow-sm">
-              <i class="fa-solid fa-paper-plane me-1"></i> Submit Payment
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
 
-    <!-- List Payments -->
-    <h4 class="mb-3"><i class="fa-solid fa-list me-2"></i> All Payments</h4>
-    <div class="card shadow-sm border-0 rounded-3">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-dark">
-            <tr>
-              <th>Name</th>
-              <th>Course</th>
-              <th>Amount</th>
-              <th>Cleared up to</th>
-              <th>Advance Paid (hrs)</th>
-              <th>Advance Paid Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in records %}
-              <tr>
-                <td>{{ r.get('name') or r.get('Name') }}</td>
-                <td>{{ r.get('course') or r.get('Course') }}</td>
-                <td>{{ r.get('amount') or r.get('Amount') }}</td>
-                <td>{{ r.get('cleared_date') or r.get('Cleared upto/Payment date') }}</td>
-                <td>{{ r.get('advance_hours') or r.get('Advance Paid ( Hours)') }}</td>
-                <td>{{ r.get('advance_amount') or r.get('advance_amount') }}</td>
-              </tr>
-            {% else %}
-              <tr>
-                <td colspan="6" class="text-center text-muted">No payments recorded yet.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    <!-- Pending Dues Tab -->
+    <div class="tab-pane fade" id="pending" role="tabpanel">
+      <div class="card">
+        <div class="header-bar">
+          <h4><i class="fa-solid fa-hourglass-half"></i> Pending Dues</h4>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Pending Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for p in pending_list %}
+                <tr>
+                  <td>{{ p.student }}</td>
+                  <td>{{ p.pending }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="fw-bold table-secondary">
+                  <td>Total Due</td>
+                  <td>{{ total_due }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
+
   </div>
-{% endblock %}
+</div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
 
