@@ -1113,7 +1113,7 @@ def payment_records():
         }).execute()
         return redirect(url_for("payment_records"))
 
-    # Fetch only this tutor's payment records
+    # Fetch payments
     records = (
         sb.table("payment_records")
         .select("*")
@@ -1123,10 +1123,65 @@ def payment_records():
         .data or []
     )
 
-    students = [s["name"] for s in get_students()]  # already scoped to tutor
+    students = [s["name"] for s in get_students()]  # scoped to tutor
     courses = get_unique_courses()
 
-    return render_template("payment_records.html", records=records, students=students, courses=courses)
+    # 🔑 Calculate pending dues per student
+    pending_list, total_due = [], 0.0
+    for student in students:
+        # hourly rate
+        st_data = sb.table("Students").select("hourly_rate").eq("name", student).eq("tutor_id", tutor_id).execute().data
+        if not st_data:
+            continue
+        rate = _to_num(st_data[0].get("hourly_rate", 0))
+
+        # last payment
+        pays = (
+            sb.table("payment_records")
+            .select("*")
+            .eq("name", student)
+            .eq("tutor_id", tutor_id)
+            .order("cleared_date")
+            .execute()
+            .data or []
+        )
+
+        cleared_date = datetime(1970, 1, 1).date()
+        adv_hrs, adv_amount = 0.0, 0.0
+        if pays:
+            last = pays[-1]
+            cleared_date = pd.to_datetime(last["cleared_date"]).date()
+            adv_hrs = _to_num(last.get("advance_hours"))
+            adv_amount = _to_num(last.get("advance_amount"))
+
+        # attendance after cleared date
+        att = (
+            sb.table("attendance")
+            .select("*")
+            .eq("name", student)
+            .eq("tutor_id", tutor_id)
+            .gte("date", str(cleared_date))
+            .execute()
+            .data or []
+        )
+
+        total_since = sum(_to_num(a.get("duration")) for a in att if pd.to_datetime(a["date"]).date() > cleared_date)
+        pending_hrs = max(total_since - adv_hrs, 0.0)
+        pending_amt = round(pending_hrs * rate - adv_amount, 2)
+
+        if pending_amt > 0:
+            pending_list.append({"student": student, "pending": pending_amt})
+            total_due += pending_amt
+
+    return render_template(
+        "payment_records.html",
+        records=records,
+        students=students,
+        courses=courses,
+        pending_list=pending_list,
+        total_due=round(total_due, 2)
+    )
+
 
 
 # dues since last cleared date minus advance hours
