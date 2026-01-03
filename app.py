@@ -467,7 +467,7 @@ def get_unique_courses():
     courses = sorted({(r.get("course") or "").strip() for r in rows if (r.get("course") or "").strip()})
     # Optional: include your custom list
     base = ["AP Statistics","IB Math AA HL","IB Math AA SL","IB Math AI HL","IB Math AI SL",
-            "AP Calculus AB","AP Calculus BC","SAT Math","A level","GCSE",CBSE AI]
+            "AP Calculus AB","AP Calculus BC","SAT Math","A level","GCSE","CBSE AI"]
     return sorted({*courses, *base})
 
 # ---------- REGISTRATION → /submit ----------
