@@ -156,6 +156,8 @@ def student_dashboard(token):
         "pending_hrs": pending_hrs,
         "rate": rate,
         "pending_amount": round(pending_hrs * rate - adv_amount, 2),
+        "Advance_Amount":adv_amount
+       
     }
 
     return render_template(
