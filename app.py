@@ -168,6 +168,7 @@ def student_dashboard(token):
         schedule=schedule,
         pending_status=status,
         pending_classes=class_details,
+        Advance_Amount= adv_amount
     )
 
 @app.route("/admin_dashboard")
