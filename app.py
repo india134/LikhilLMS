@@ -155,7 +155,7 @@ def student_dashboard(token):
         "total_since": total_since,
         "pending_hrs": pending_hrs,
         "rate": rate,
-        "pending_amount": round(pending_hrs * rate - adv_amount, 2),
+        "pending_amount": round(total_since * rate - adv_amount, 2),
         "Advance_Amount":adv_amount
        
     }
@@ -1273,7 +1273,7 @@ def payment_status():
             "total_since": total_since,
             "pending_hrs": pending_hrs,
             "rate": rate,
-            "pending_amount": round(pending_hrs * rate-adv_hrs*rate-adv_amount, 2),
+            "pending_amount": round(total_since * rate-adv_hrs*rate 2),
         }
 
     return render_template("payment_status.html",
